@@ -1,0 +1,23 @@
+{
+  "name": "EduEats - Gestión Escolar",
+  "short_name": "EduEats",
+  "description": "Sistema de gestión de menú escolar y pedidos nutricionales.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#10B981",
+  "theme_color": "#10B981",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://picsum.photos/id/192/192/192",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://picsum.photos/id/512/512/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
