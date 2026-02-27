@@ -216,7 +216,7 @@ export const StudentDashboard = () => {
     
     setIsLoadingAi(true);
     try {
-        const advice = await geminiService.getNutritionalAdvice(statsData.chartData);
+        const advice = await geminiService.getNutritionalAdvice({ dailyLunchStats: statsData.chartData });
         setAiAdvice(advice);
     } catch (error) {
         console.error(error);

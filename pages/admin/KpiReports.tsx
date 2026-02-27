@@ -1,6 +1,6 @@
-import { useState, useEffect, React } from 'react';
+import { useState, useEffect } from 'react';
 import { KpiReportData } from '../../types';
-import { CalendarDays, BarChart, TrendingUp, Lightbulb, Loader2 } from 'lucide-react';
+import { CalendarDays, BarChart, TrendingUp, Lightbulb, Loader2, TrendingDown } from 'lucide-react';
 import { db } from '../../services/db';
 import { GeneratedReport, ReportType } from '../../types';
 import { geminiService } from '../../services/gemini';
@@ -49,6 +49,11 @@ export const KpiReports = () => {
 
     setKpiData({
       totalOrders: mainRangeTotalOrders,
+      avgOrderItems: 0, // Placeholder, as it's not calculated here
+      topRecipe: null, // Placeholder
+      bottomRecipe: null, // Placeholder
+      orderTrend: [], // Placeholder
+      categoryDistribution: [], // Placeholder
       uniqueUsers: mainRangeUniqueUsers,
       participationRate: mainRangeParticipationRate,
       operatingDays: mainRangeOperatingDays,
@@ -64,6 +69,11 @@ export const KpiReports = () => {
 
     setComparisonData({
       totalOrders: compareRangeTotalOrders,
+      avgOrderItems: 0, // Placeholder
+      topRecipe: null, // Placeholder
+      bottomRecipe: null, // Placeholder
+      orderTrend: [], // Placeholder
+      categoryDistribution: [], // Placeholder
       uniqueUsers: compareRangeUniqueUsers,
       participationRate: compareRangeParticipationRate,
       operatingDays: compareRangeOperatingDays,
@@ -220,10 +230,4 @@ export const KpiReports = () => {
   );
 };
 
-// Helper for TrendingDown icon (assuming it's not directly imported in lucide-react, or needs a local definition)
-const TrendingDown = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="22 17 13.5 8.5 8.5 13.5 2 7"></polyline>
-    <polyline points="16 17 22 17 22 11"></polyline>
-  </svg>
-);
+

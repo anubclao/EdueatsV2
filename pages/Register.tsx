@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { UserRole } from '../types';
+import { Role } from '../types';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
 import { Salad, UserPlus, ArrowRight, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
@@ -55,7 +55,7 @@ export const Register = () => {
       name: formData.name,
       email: formData.email,
       phone: formData.phone,
-      role: formData.role as UserRole,
+      role: formData.role as Role,
       grade: formData.role === 'student' ? Number(formData.grade) : undefined,
       section: formData.role === 'student' ? formData.section : undefined,
       allergies: formData.allergies,

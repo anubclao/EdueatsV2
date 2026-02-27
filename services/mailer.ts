@@ -28,7 +28,7 @@ export const sendSchoolEmail = async (to: string, subject: string, html: string)
   console.log(`[SERVIDOR] Iniciando proceso de envío a: ${to}`);
 
   // --- SIMULACIÓN (Para que funcione en esta Demo y Vercel Client-Side) ---
-  return new Promise<{success: boolean, messageId?: string, error?: any}>((resolve) => {
+  return new Promise<{success: boolean, messageId?: string, error?: unknown}>((resolve) => {
     setTimeout(() => {
       console.group('📧 [SIMULACIÓN SMTP] Correo Enviado Exitosamente');
       console.log('Host:', SMTP_CONFIG.host);

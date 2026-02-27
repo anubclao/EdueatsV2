@@ -10,5 +10,7 @@ declare namespace NodeJS {
     readonly GEMINI_API_KEY: string;
     readonly EMAIL_USER: string;
     readonly EMAIL_PASS: string;
+    readonly VITE_SUPABASE_URL: string;
+    readonly VITE_SUPABASE_ANON_KEY: string;
   }
 }

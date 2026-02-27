@@ -130,12 +130,24 @@ export interface GeneratedReport {
   dateGenerated: string; // ISO string YYYY-MM-DDTHH:mm:ssZ
   title: string;
   content: string; // The markdown/text content of the report
-  filtersUsed?: any; // JSON object of filters applied (e.g., date ranges)
+  filtersUsed?: Record<string, unknown>; // JSON object of filters applied (e.g., date ranges)
+}
+
+export interface ImportedUserData {
+  Nombre: string;
+  Email: string;
+  Rol: string;
+  Grado?: number | string;
+  Seccion?: string;
+  Alergias?: string;
 }
 
 export interface KpiReportData {
   totalOrders: number;
   avgOrderItems: number;
+  uniqueUsers: number;
+  participationRate: number;
+  operatingDays: number;
   topRecipe: { name: string; count: number } | null;
   bottomRecipe: { name: string; count: number } | null;
   orderTrend: { date: string; count: number }[];

@@ -45,7 +45,7 @@ export const geminiService = {
   /**
    * Analyzes nutritional data and provides personalized advice.
    */
-  async getNutritionalAdvice(stats: any): Promise<{ title: string; text: string; score: number }> {
+  async getNutritionalAdvice(stats: Record<string, unknown>): Promise<{ title: string; text: string; score: number }> {
     try {
       const prompt = `
         Analiza los siguientes datos de almuerzos escolares de un estudiante de los últimos 7 días:

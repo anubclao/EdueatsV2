@@ -206,7 +206,7 @@ export const OrderFlow = () => {
     setExistingOrder(existing);
 
     if (existing) {
-      const loadedSelections: any = {};
+      const loadedSelections: Record<string, string | null> = {};
       existing.items.forEach(item => {
         loadedSelections[item.category] = item.recipeId;
       });
@@ -226,7 +226,7 @@ export const OrderFlow = () => {
         const dayPref = preferences.find(p => p.dayOfWeek === dayOfWeek);
 
         if (dayPref) {
-            const newSelections: any = {};
+            const newSelections: Record<string, string | null> = {};
             let matchCount = 0;
             
             dayPref.items.forEach(prefItem => {

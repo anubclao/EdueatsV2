@@ -3,13 +3,30 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import Greeting from './components/Greeting';
+import { useState, useEffect } from 'react';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from './services/supabaseClient';
+import Auth from './components/Auth';
+import Dashboard from './components/Dashboard';
 
 export default function App() {
+    const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center flex-col">
-      <h1 className="text-4xl font-bold text-gray-800">Welcome to EduEats!</h1>
-      <Greeting />
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      {!session ? <Auth /> : <Dashboard session={session} />}
     </div>
   );
 }

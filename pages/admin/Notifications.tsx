@@ -289,7 +289,7 @@ export const Notifications = () => {
                     </div>
                     {user.phone ? (
                       <button 
-                        onClick={() => sendWhatsApp(user.phone, selectedNoteForWA.message)}
+                        onClick={() => user.phone && sendWhatsApp(user.phone, selectedNoteForWA.message)}
                         className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-transform active:scale-95"
                       >
                         <MessageCircle size={14} /> Enviar

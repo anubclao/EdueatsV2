@@ -2,7 +2,7 @@ import { Order, Recipe, User } from "../types";
 
 declare global {
   interface Window {
-    XLSX: any;
+    XLSX: typeof import('xlsx');
   }
 }
 

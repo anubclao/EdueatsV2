@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, FormEvent, ChangeEvent } from 'react';
 import { db } from '../../services/db';
-import { User, Role } from '../../types';
+import { User, Role, ImportedUserData } from '../../types';
 import { Plus, Trash2, Search, Pencil, CheckCircle, AlertTriangle, GraduationCap, User as UserIcon, Briefcase, Upload, FileDown, Loader2 } from 'lucide-react';
 
 export const Users = () => {
@@ -99,8 +99,8 @@ export const Users = () => {
                 return;
             }
             setMessage({ text: "Registro modificado satisfactoriamente.", type: 'success' });
-        } catch (error: any) {
-            setMessage({ text: `Error al actualizar usuario: ${error.message || error}`, type: 'error' });
+        } catch (error: unknown) {
+            setMessage({ text: `Error al actualizar usuario: ${(error as Error).message || error}`, type: 'error' });
             return;
         }
     } else {
@@ -112,8 +112,8 @@ export const Users = () => {
                 return;
             }
             setMessage({ text: "Usuario creado exitosamente.", type: 'success' });
-        } catch (error: any) {
-            setMessage({ text: `Error al crear usuario: ${error.message || error}`, type: 'error' });
+        } catch (error: unknown) {
+            setMessage({ text: `Error al crear usuario: ${(error as Error).message || error}`, type: 'error' });
             return;
         }
     }
@@ -178,7 +178,7 @@ export const Users = () => {
             const wb = window.XLSX.read(bstr, { type: 'binary' });
             const wsname = wb.SheetNames[0];
             const ws = wb.Sheets[wsname];
-            const data = window.XLSX.utils.sheet_to_json(ws);
+            const data = window.XLSX.utils.sheet_to_json(ws) as ImportedUserData[];
 
             processImportData(data);
         } catch (error) {
@@ -192,18 +192,18 @@ export const Users = () => {
     reader.readAsBinaryString(file);
   };
 
-  const processImportData = (data: any[]) => {
+  const processImportData = (data: ImportedUserData[]) => {
     let successCount = 0;
     let failCount = 0;
     const errors: string[] = [];
 
-    data.forEach((row: any, index) => {
+    data.forEach((row: ImportedUserData, index) => {
         const rowNum = index + 2; // +2 for header and 0-index
         
         // Basic mapping
-        const name = row['Nombre'] || row['nombre'];
-        const email = row['Email'] || row['email'];
-        const roleRaw = (row['Rol'] || row['rol'] || 'student').toLowerCase();
+        const name = row['Nombre'];
+        const email = row['Email'];
+        const roleRaw = (row['Rol'] || 'student').toLowerCase();
         
         // Map Role
         let role: Role = 'student';
@@ -223,9 +223,9 @@ export const Users = () => {
             email,
             role,
             emailVerified: true, // Auto-verify bulk imports
-            grade: role === 'student' ? Number(row['Grado'] || row['grado'] || 0) : undefined,
-            section: role === 'student' ? String(row['Seccion'] || row['seccion'] || 'A') : undefined,
-            allergies: row['Alergias'] || row['alergias'] || ''
+            grade: role === 'student' ? Number(row['Grado'] || 0) : undefined,
+            section: role === 'student' ? String(row['Seccion'] || 'A') : undefined,
+            allergies: row['Alergias'] || ''
         };
 
         const res = db.registerUser(newUser);
