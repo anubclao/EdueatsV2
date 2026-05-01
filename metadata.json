@@ -1,0 +1,5 @@
+{
+  "name": "EduEats",
+  "description": "A comprehensive school menu management system enabling admins to plan nutritious meals and students to pre-order their lunches with mandatory category validation.",
+  "requestFramePermissions": []
+}
