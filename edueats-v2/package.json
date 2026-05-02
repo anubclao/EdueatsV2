@@ -9,6 +9,6 @@
   "scripts": {
     "dev:web": "npm run dev -w @edueats/web",
     "dev:api": "npm run dev -w @edueats/api",
-    "build": "npm run build -w @edueats/shared && npm run build -w @edueats/api && npm run build -w @edueats/web"
+    "build": "npm run build -w @edueats/shared && npm run build -w @edueats/api && npm run build -w @edueats/web && node scripts/sync-web-dist.mjs"
   }
 }

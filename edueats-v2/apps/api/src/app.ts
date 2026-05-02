@@ -1,5 +1,6 @@
 import cors from 'cors';
 import express from 'express';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { categoriesRouter } from './routes/categories.js';
@@ -55,9 +56,18 @@ export function createApp() {
 
   // Serve React frontend in production
   if (process.env.NODE_ENV === 'production') {
-    const webDist = process.env.WEB_DIST_PATH
+    const bundledWebDist = path.join(__dirname, 'web');
+    const workspaceWebDist = path.join(__dirname, '..', '..', 'web', 'dist');
+    const envWebDist = process.env.WEB_DIST_PATH
       ? path.resolve(process.cwd(), process.env.WEB_DIST_PATH)
-      : path.join(__dirname, '..', '..', 'web', 'dist');
+      : null;
+
+    const webDistCandidates = [bundledWebDist, workspaceWebDist, envWebDist].filter(Boolean) as string[];
+    const webDist = webDistCandidates.find((candidate) => fs.existsSync(path.join(candidate, 'index.html')));
+
+    if (!webDist) {
+      throw new Error(`No se encontro dist del frontend. Rutas probadas: ${webDistCandidates.join(', ')}`);
+    }
 
     app.use(express.static(webDist));
 
