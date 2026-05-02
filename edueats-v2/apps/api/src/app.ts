@@ -22,13 +22,13 @@ export function createApp() {
   const app = express();
 
   const origins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',')
+    ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim().toLowerCase())
     : ['http://localhost:5173'];
 
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || origins.includes(origin)) return callback(null, true);
+        if (!origin || origins.includes(origin.toLowerCase())) return callback(null, true);
         return callback(new Error('CORS bloqueado'));
       },
       credentials: true,
