@@ -19,7 +19,7 @@ export const Login = () => {
         setError("No encontramos una cuenta con este correo. Verifica o regístrate.");
       }
     } catch {
-      setError('No se pudo conectar con el servidor. Verifica la configuracion del backend e intenta nuevamente.');
+      setError('No se pudo conectar con el servidor. Verifica la configuración del backend e intenta nuevamente.');
     }
   };
 

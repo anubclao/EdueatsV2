@@ -3,9 +3,16 @@ import cors from 'cors';
 import { config } from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import fs from 'fs';
 config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const distCandidates = [
+  path.join(__dirname, '..', 'dist'),
+  path.join(__dirname, 'dist'),
+];
+const clientDistPath = distCandidates.find((candidate) => fs.existsSync(path.join(candidate, 'index.html')));
+const clientIndexPath = clientDistPath ? path.join(clientDistPath, 'index.html') : null;
 
 import { checkDbConnection } from './db.js';
 import recipesRouter      from './routes/recipes.js';
@@ -55,6 +62,18 @@ app.use('/api/notifications', notificationsRouter);
 app.use('/api/surveys',       surveysRouter);
 app.use('/api/variables',     variablesRouter);
 app.use('/api/reports',       reportsRouter);
+
+// In single-domain deployments, serve the React app from the same Node process.
+if (clientDistPath && clientIndexPath) {
+  app.use(express.static(clientDistPath));
+
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/images')) {
+      return next();
+    }
+    return res.sendFile(clientIndexPath);
+  });
+}
 
 app.get('/api/health', (_req, res) => {
   const status = dbStartupStatus === 'degraded' ? 'degraded' : 'ok';
