@@ -59,7 +59,7 @@ export const GlobalVariables = () => {
       if (res.success) {
         setMessage({ text: 'Variable modificada satisfactoriamente.', type: 'success' });
       } else {
-        setMessage({ text: res.message || 'Error al modificar la variable.', type: 'error' });
+        setMessage({ text: 'Error al modificar la variable.', type: 'error' });
       }
     } else {
       // Add new

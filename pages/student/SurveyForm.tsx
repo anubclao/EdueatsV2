@@ -21,25 +21,26 @@ export const SurveyForm = () => {
 
   useEffect(() => {
     if (user) {
-        loadSurveys();
+                void loadSurveys();
     }
   }, [user]);
 
-  const loadSurveys = () => {
+    const loadSurveys = async () => {
       const today = new Date().toISOString().split('T')[0];
-      const allDefs = db.getSurveyDefinitions();
+            const allDefs = await db.getSurveyDefinitions();
       
       // Filter Active and Within Date Range
-      const active = allDefs.filter(d => d.isActive && today >= d.startDate && today <= d.endDate);
+            const active = allDefs.filter((d) => d.isActive && today >= d.startDate && today <= d.endDate);
       setActiveSurveys(active);
 
       // Check which ones the user has already done
-      const completed: string[] = [];
-      active.forEach(def => {
-          if (user && db.hasUserResponded(user.id, def.id)) {
-              completed.push(def.id);
-          }
-      });
+            const completedChecks = await Promise.all(
+                active.map(async (def) => ({
+                    id: def.id,
+                    completed: user ? await db.hasUserResponded(user.id, def.id) : false,
+                }))
+            );
+            const completed = completedChecks.filter((def) => def.completed).map((def) => def.id);
       setCompletedSurveys(completed);
   };
 
@@ -51,7 +52,7 @@ export const SurveyForm = () => {
       setComment('');
   };
 
-  const handleSubmit = (e: FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!user || !selectedSurvey) return;
     
@@ -75,12 +76,12 @@ export const SurveyForm = () => {
       status: 'pending'
     };
 
-    const res = db.saveSurvey(newSurvey);
+    const res = await db.saveSurvey(newSurvey);
     if (res.success) {
         setSubmitted(true);
-        loadSurveys(); // Refresh status
+        await loadSurveys(); // Refresh status
     } else {
-        alert(res.message);
+        alert(res.message || 'No se pudo enviar la encuesta.');
     }
   };
 

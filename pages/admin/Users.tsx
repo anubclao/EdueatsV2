@@ -146,58 +146,69 @@ export const Users = () => {
   // --- BULK IMPORT / EXPORT LOGIC ---
 
   const handleDownloadTemplate = () => {
-    if (!window.XLSX) {
-        alert("Librería Excel no cargada.");
-        return;
-    }
-
-    // Define headers and example rows
-    const ws_data = [
-        ["Nombre", "Email", "Rol", "Grado", "Seccion", "Alergias"],
-        ["Juan Pérez", "juan@ejemplo.com", "student", "5", "A", "Ninguna"],
-        ["Maria Profe", "maria@ejemplo.com", "teacher", "", "", "Nueces"],
-        ["Admin Demo", "admin2@ejemplo.com", "staff", "", "", ""]
-    ];
-
-    const wb = window.XLSX.utils.book_new();
-    const ws = window.XLSX.utils.aoa_to_sheet(ws_data);
-    
-    // Add help comments (metadata not strictly supported in simple csv/xlsx but we assume standard columns)
-    
-    window.XLSX.utils.book_append_sheet(wb, ws, "Plantilla Usuarios");
-    window.XLSX.writeFile(wb, "Plantilla_Carga_Usuarios.xlsx");
+    void import('exceljs').then(async ({ default: ExcelJS }) => {
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet('Plantilla Usuarios');
+      ws.columns = [
+        { header: 'Nombre', key: 'nombre', width: 20 },
+        { header: 'Email', key: 'email', width: 28 },
+        { header: 'Rol', key: 'rol', width: 12 },
+        { header: 'Grado', key: 'grado', width: 8 },
+        { header: 'Seccion', key: 'seccion', width: 10 },
+        { header: 'Alergias', key: 'alergias', width: 20 },
+      ];
+      ws.addRow(['Juan Pérez', 'juan@ejemplo.com', 'student', '5', 'A', 'Ninguna']);
+      ws.addRow(['Maria Profe', 'maria@ejemplo.com', 'teacher', '', '', 'Nueces']);
+      ws.addRow(['Admin Demo', 'admin2@ejemplo.com', 'staff', '', '', '']);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Plantilla_Carga_Usuarios.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
   };
 
   const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!window.XLSX) {
-        alert("Librería Excel no lista.");
-        return;
-    }
-
     setIsImporting(true);
 
     const reader = new FileReader();
     reader.onload = (evt) => {
+      void import('exceljs').then(async ({ default: ExcelJS }) => {
         try {
-            const bstr = evt.target?.result;
-            const wb = window.XLSX.read(bstr, { type: 'binary' });
-            const wsname = wb.SheetNames[0];
-            const ws = wb.Sheets[wsname];
-            const data = window.XLSX.utils.sheet_to_json(ws) as ImportedUserData[];
-
-            processImportData(data);
+          const buffer = evt.target?.result as ArrayBuffer;
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(buffer);
+          const ws = workbook.worksheets[0];
+          const headers: string[] = [];
+          const data: ImportedUserData[] = [];
+          ws.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) {
+              row.eachCell(cell => headers.push(String(cell.value ?? '')));
+            } else {
+              const rowData = {} as ImportedUserData;
+              row.eachCell((cell, colNumber) => {
+                (rowData as unknown as Record<string, unknown>)[headers[colNumber - 1]] = cell.value ?? '';
+              });
+              data.push(rowData);
+            }
+          });
+          await processImportData(data);
         } catch (error) {
-            console.error(error);
-            alert("Error al leer el archivo. Asegúrate de usar la plantilla correcta.");
+          console.error(error);
+          alert('Error al leer el archivo. Asegúrate de usar la plantilla correcta.');
         } finally {
-            setIsImporting(false);
-            if (fileInputRef.current) fileInputRef.current.value = ''; // Reset input
+          setIsImporting(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
         }
+      });
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const processImportData = async (data: ImportedUserData[]) => {

@@ -1,12 +1,12 @@
-import { useEffect, useState, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useState, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../services/db';
 
 import { Order, Recipe, RecurringPreference, SystemNotification, UnconfirmedMenuReportItem, DailyMenuConfig, CategoryDef } from '../../types';
-import * as XLSX from 'xlsx';
 import { CheckCircle, Circle, ChevronRight, History, Calendar, Clock, X, User as UserIcon, Mail, Shield, Star, Trash2, AlertTriangle, Sparkles, PartyPopper, Activity, FileDown } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
+
+const StudentCaloriesChart = lazy(() => import('../../components/charts/StudentCaloriesChart'));
 
 export const StudentDashboard = () => {
   const { user } = useAuth();
@@ -239,10 +239,24 @@ export const StudentDashboard = () => {
       };
     });
 
-    const ws = XLSX.utils.json_to_sheet(reportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Reporte de Pedidos');
-    XLSX.writeFile(wb, `Reporte_Pedidos_${user.name}_${reportStartDate}_a_${reportEndDate}.xlsx`);
+    void import('exceljs').then(async ({ default: ExcelJS }) => {
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet('Reporte de Pedidos');
+      ws.columns = [
+        { header: 'Fecha del Pedido', key: 'fecha', width: 18 },
+        { header: 'Estado', key: 'estado', width: 14 },
+        { header: 'Items Pedidos', key: 'items', width: 40 },
+      ];
+      reportData.forEach(r => ws.addRow([r['Fecha del Pedido'], r['Estado'], r['Items Pedidos']]));
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Reporte_Pedidos_${user.name}_${reportStartDate}_a_${reportEndDate}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
   };
 
   const getNotificationStyles = (type: string) => {
@@ -405,48 +419,33 @@ export const StudentDashboard = () => {
       {/* NUTRITION SUMMARY SECTION */}
       {statsData && statsData.daysCount > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          {/* Caloric Chart Snapshot */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col">
-            <div className="flex items-center justify-between mb-6">
+          {/* Caloric Summary Snapshot */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-between lg:col-span-2">
+            <div className="flex items-center justify-between mb-6 gap-4">
               <h4 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <Activity className="text-primary" size={18} /> Calorías
+                <Activity className="text-primary" size={18} /> Resumen Nutricional
               </h4>
               <div className="text-right">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Promedio</p>
                 <p className="text-lg font-black text-gray-800 dark:text-white leading-none">{statsData.avgCalories} <span className="text-[10px] font-normal text-gray-500">kcal</span></p>
               </div>
             </div>
-            <div className="h-[140px]">
-              <ResponsiveContainer width="100%" height="100%" debounce={50}>
-                <BarChart data={statsData.chartData}>
-                  <Bar dataKey="calories" radius={[4, 4, 0, 0]}>
-                    {statsData.chartData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.calories > 1000 ? '#F59E0B' : entry.calories < 400 ? '#EF4444' : '#10B981'} 
-                        fillOpacity={0.8}
-                      />
-                    ))}
-                  </Bar>
-                  <Tooltip 
-                    cursor={{ fill: 'transparent' }}
-                    content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        return (
-                          <div className="bg-white dark:bg-gray-700 p-2 rounded-lg shadow-xl border border-gray-100 dark:border-gray-600 text-[10px] font-bold">
-                            <p className="text-gray-500 dark:text-gray-400">{payload[0].payload.day}</p>
-                            <p className="text-primary">{payload[0].value} kcal</p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 p-4 border border-emerald-100 dark:border-emerald-800">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-300">Días analizados</p>
+                <p className="mt-2 text-3xl font-black text-emerald-700 dark:text-emerald-200">{statsData.daysCount}</p>
+              </div>
+              <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 p-4 border border-blue-100 dark:border-blue-800">
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-300">Promedio diario</p>
+                <p className="mt-2 text-3xl font-black text-blue-700 dark:text-blue-200">{statsData.avgCalories}</p>
+              </div>
+              <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 p-4 border border-amber-100 dark:border-amber-800">
+                <p className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-300">Vista recomendada</p>
+                <p className="mt-2 text-sm font-bold text-amber-700 dark:text-amber-200">Abre la pestaña Nutrición para ver la gráfica detallada.</p>
+              </div>
             </div>
             <p className="text-[10px] text-center text-gray-400 mt-4 font-medium">
-              Tendencia de los últimos {statsData.daysCount} días
+              La gráfica se carga solo cuando abres la pestaña de Nutrición.
             </p>
           </div>
         </div>
@@ -662,20 +661,9 @@ export const StudentDashboard = () => {
                               <Activity className="text-primary" size={20} /> Consumo Calórico Diario
                           </h4>
                           <div className="h-64 w-full">
-                            <ResponsiveContainer width="100%" height="100%" debounce={50}>
-                                <BarChart data={statsData.chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                    <XAxis dataKey="day" stroke="#9CA3AF" fontSize={12} />
-                                    <YAxis stroke="#9CA3AF" fontSize={12} />
-                                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} cursor={{ fill: 'rgba(0,0,0,0.05)' }} />
-                                    <ReferenceLine y={800} stroke="orange" strokeDasharray="3 3" label={{ value: 'Rec. Max', position: 'insideTopRight', fill: 'orange', fontSize: 10 }} />
-                                    <Bar dataKey="calories" name="Calorías" radius={[6, 6, 0, 0]} barSize={40}>
-                                        {statsData.chartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.calories > 1000 ? '#F59E0B' : entry.calories < 400 ? '#EF4444' : '#10B981'} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+                          <Suspense fallback={<div className="h-full rounded-xl bg-gray-50 dark:bg-gray-700/40 animate-pulse" />}>
+                            <StudentCaloriesChart data={statsData.chartData} />
+                          </Suspense>
                           </div>
                       </div>
 

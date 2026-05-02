@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useState, useEffect, useMemo } from 'react';
 import { db } from '../../services/db';
 import { Order, User, Recipe, DailyMenuConfig, GeneratedReport } from '../../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Download, Calendar, AlertCircle, TrendingUp } from 'lucide-react';
-import { generateAdvancedReport } from '../../utils/excel';
+
+const AdminOrdersChart = lazy(() => import('../../components/charts/AdminOrdersChart'));
 
 export const Reports = () => {
   // Dates: Default to current week
@@ -105,8 +105,9 @@ export const Reports = () => {
         .slice(0, 5);
   }, [filteredOrders, recipes]);
 
-  const handleDownload = async () => {
-    generateAdvancedReport(filteredOrders, recipes, {start: startDate, end: endDate}, missingOrdersData);
+    const handleDownload = async () => {
+        const { generateAdvancedReport } = await import('../../utils/excel');
+        await generateAdvancedReport(filteredOrders, recipes, {start: startDate, end: endDate}, missingOrdersData);
 
     const report: GeneratedReport = {
       id: crypto.randomUUID(),
@@ -197,19 +198,9 @@ export const Reports = () => {
           <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
             <h3 className="font-bold text-gray-800 dark:text-white mb-6">Comportamiento Diario (Confirmados vs Faltantes)</h3>
             <div className="h-72 w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%" debounce={50}>
-                    <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                        <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} tickFormatter={(val) => val.slice(5)} />
-                        <YAxis stroke="#9CA3AF" fontSize={12} />
-                        <Tooltip 
-                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                        />
-                        <Legend />
-                        <Bar dataKey="pedidos" name="Pedidos Confirmados" fill="#10B981" radius={[4, 4, 0, 0]} stackId="a" />
-                        <Bar dataKey="faltantes" name="Sin Pedido" fill="#F3F4F6" radius={[4, 4, 0, 0]} stackId="a" />
-                    </BarChart>
-                </ResponsiveContainer>
+                                <Suspense fallback={<div className="h-full rounded-xl bg-gray-50 dark:bg-gray-700/40 animate-pulse" />}>
+                                    <AdminOrdersChart data={chartData} />
+                                </Suspense>
             </div>
           </div>
 

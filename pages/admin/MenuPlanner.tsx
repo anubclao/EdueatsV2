@@ -1,7 +1,7 @@
 import { useState, useEffect, MouseEvent } from 'react';
 import { db } from '../../services/db';
 import { Recipe, CategoryDef, DailyMenuConfig } from '../../types';
-import { Save, AlertCircle, History, Calendar, Edit, Trash2, Search, Image as ImageIcon, Lock } from 'lucide-react';
+import { Save, AlertCircle, History, Calendar, Trash2, Search, Image as ImageIcon, Lock } from 'lucide-react';
 
 export const MenuPlanner = () => {
   const todayStr = new Date().toISOString().split('T')[0];
@@ -123,11 +123,6 @@ export const MenuPlanner = () => {
             setMenuItems([]);
         }
     }
-  };
-
-  const handleEditFromHistory = (date: string) => {
-    setSelectedDate(date);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const filteredHistory = menuHistory.filter(m => 

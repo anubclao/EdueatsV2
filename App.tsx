@@ -1,26 +1,33 @@
-import { ReactNode } from 'react';
+import { lazy, ReactNode, Suspense } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { Layout } from './components/Layout';
-import { Login } from './pages/Login';
-import { Register } from './pages/Register';
-import { VerifyEmail } from './pages/VerifyEmail';
-import { PendingVerify } from './pages/PendingVerify';
-import { Dashboard } from './pages/admin/Dashboard';
-import { Recipes } from './pages/admin/Recipes';
-import { MenuPlanner } from './pages/admin/MenuPlanner';
-import { Users } from './pages/admin/Users';
-import { Categories } from './pages/admin/Categories';
-import { Roles } from './pages/admin/Roles';
-import { Reports as OverviewReports } from './pages/admin/Reports'; // Renamed for clarity
-import { KpiReports } from './pages/admin/KpiReports';
-import { Notifications } from './pages/admin/Notifications';
-import { SurveyManager } from './pages/admin/SurveyManager'; // Import Admin Survey Manager
-import { GlobalVariables } from './pages/admin/GlobalVariables'; // Import Global Variables Manager
-import { ReportHistory } from './pages/admin/ReportHistory'; // Import Report History
-import { StudentDashboard } from './pages/student/StudentDashboard';
-import { OrderFlow } from './pages/student/OrderFlow';
-import { SurveyForm } from './pages/student/SurveyForm'; // Import Student Survey Form
+
+const Layout = lazy(() => import('./components/Layout').then((module) => ({ default: module.Layout })));
+const Login = lazy(() => import('./pages/Login').then((module) => ({ default: module.Login })));
+const Register = lazy(() => import('./pages/Register').then((module) => ({ default: module.Register })));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail').then((module) => ({ default: module.VerifyEmail })));
+const PendingVerify = lazy(() => import('./pages/PendingVerify').then((module) => ({ default: module.PendingVerify })));
+const Dashboard = lazy(() => import('./pages/admin/Dashboard').then((module) => ({ default: module.Dashboard })));
+const Recipes = lazy(() => import('./pages/admin/Recipes').then((module) => ({ default: module.Recipes })));
+const MenuPlanner = lazy(() => import('./pages/admin/MenuPlanner').then((module) => ({ default: module.MenuPlanner })));
+const Users = lazy(() => import('./pages/admin/Users').then((module) => ({ default: module.Users })));
+const Categories = lazy(() => import('./pages/admin/Categories').then((module) => ({ default: module.Categories })));
+const Roles = lazy(() => import('./pages/admin/Roles').then((module) => ({ default: module.Roles })));
+const OverviewReports = lazy(() => import('./pages/admin/Reports').then((module) => ({ default: module.Reports })));
+const KpiReports = lazy(() => import('./pages/admin/KpiReports').then((module) => ({ default: module.KpiReports })));
+const Notifications = lazy(() => import('./pages/admin/Notifications').then((module) => ({ default: module.Notifications })));
+const SurveyManager = lazy(() => import('./pages/admin/SurveyManager').then((module) => ({ default: module.SurveyManager })));
+const GlobalVariables = lazy(() => import('./pages/admin/GlobalVariables').then((module) => ({ default: module.GlobalVariables })));
+const ReportHistory = lazy(() => import('./pages/admin/ReportHistory').then((module) => ({ default: module.ReportHistory })));
+const StudentDashboard = lazy(() => import('./pages/student/StudentDashboard').then((module) => ({ default: module.StudentDashboard })));
+const OrderFlow = lazy(() => import('./pages/student/OrderFlow').then((module) => ({ default: module.OrderFlow })));
+const SurveyForm = lazy(() => import('./pages/student/SurveyForm').then((module) => ({ default: module.SurveyForm })));
+
+const RouteFallback = () => (
+  <div className="min-h-[40vh] flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+    Cargando...
+  </div>
+);
 
 const PrivateRoute = ({ children, roles }: { children?: ReactNode, roles: string[] }) => {
   const { user } = useAuth();
@@ -55,48 +62,50 @@ const AppRoutes = () => {
   };
 
   return (
-    <Routes>
-      {/* Public Routes */}
-      <Route path="/login" element={!user ? <Login /> : <Navigate to={getHomeRedirect()} />} />
-      <Route path="/register" element={!user ? <Register /> : <Navigate to={getHomeRedirect()} />} />
-      <Route path="/verify" element={<VerifyEmail />} />
-      
-      {/* Semi-Protected (Authenticated but Unverified) */}
-      <Route path="/pending-verify" element={
-        user && !user.emailVerified ? <PendingVerify /> : <Navigate to={getHomeRedirect()} />
-      } />
-      
-      {/* Protected Admin Routes */}
-      <Route path="/admin" element={<PrivateRoute roles={['admin']}><Layout /></PrivateRoute>}>
-        <Route index element={<Navigate to="/admin/dashboard" replace />} /> {/* Default sub-route */}
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="reports" element={<Outlet />}>
-          <Route index element={<Navigate to="/admin/reports/overview" replace />} />
-          <Route path="overview" element={<OverviewReports />} />
-          <Route path="kpi" element={<KpiReports />} />
-          <Route path="history" element={<ReportHistory />} />
+    <Suspense fallback={<RouteFallback />}>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/login" element={!user ? <Login /> : <Navigate to={getHomeRedirect()} />} />
+        <Route path="/register" element={!user ? <Register /> : <Navigate to={getHomeRedirect()} />} />
+        <Route path="/verify" element={<VerifyEmail />} />
+        
+        {/* Semi-Protected (Authenticated but Unverified) */}
+        <Route path="/pending-verify" element={
+          user && !user.emailVerified ? <PendingVerify /> : <Navigate to={getHomeRedirect()} />
+        } />
+        
+        {/* Protected Admin Routes */}
+        <Route path="/admin" element={<PrivateRoute roles={['admin']}><Layout /></PrivateRoute>}>
+          <Route index element={<Navigate to="/admin/dashboard" replace />} /> {/* Default sub-route */}
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="reports" element={<Outlet />}>
+            <Route index element={<Navigate to="/admin/reports/overview" replace />} />
+            <Route path="overview" element={<OverviewReports />} />
+            <Route path="kpi" element={<KpiReports />} />
+            <Route path="history" element={<ReportHistory />} />
+          </Route>
+          <Route path="recipes" element={<Recipes />} />
+          <Route path="categories" element={<Categories />} />
+          <Route path="menu" element={<MenuPlanner />} />
+          <Route path="users" element={<Users />} />
+          <Route path="roles" element={<Roles />} />
+          <Route path="notifications" element={<Notifications />} />
+          <Route path="surveys" element={<SurveyManager />} />
+          <Route path="global-variables" element={<GlobalVariables />} />
         </Route>
-        <Route path="recipes" element={<Recipes />} />
-        <Route path="categories" element={<Categories />} />
-        <Route path="menu" element={<MenuPlanner />} />
-        <Route path="users" element={<Users />} />
-        <Route path="roles" element={<Roles />} />
-        <Route path="notifications" element={<Notifications />} />
-        <Route path="surveys" element={<SurveyManager />} />
-        <Route path="global-variables" element={<GlobalVariables />} />
-      </Route>
 
-      {/* Protected Student Routes (Now accessible by Teacher, Staff, Visitor) */}
-      <Route path="/student" element={<PrivateRoute roles={ORDERING_ROLES}><Layout /></PrivateRoute>}>
-        <Route index element={<Navigate to="/student/dashboard" replace />} /> {/* Default sub-route */}
-        <Route path="dashboard" element={<StudentDashboard />} />
-        <Route path="order/:date" element={<OrderFlow />} />
-        <Route path="survey" element={<SurveyForm />} />
-      </Route>
+        {/* Protected Student Routes (Now accessible by Teacher, Staff, Visitor) */}
+        <Route path="/student" element={<PrivateRoute roles={ORDERING_ROLES}><Layout /></PrivateRoute>}>
+          <Route index element={<Navigate to="/student/dashboard" replace />} /> {/* Default sub-route */}
+          <Route path="dashboard" element={<StudentDashboard />} />
+          <Route path="order/:date" element={<OrderFlow />} />
+          <Route path="survey" element={<SurveyForm />} />
+        </Route>
 
-      {/* Default redirect */}
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+        {/* Default redirect */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </Suspense>
   );
 };
 

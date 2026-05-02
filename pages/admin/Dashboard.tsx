@@ -80,7 +80,7 @@ export const Dashboard = () => {
   });
 
   const handleExport = () => {
-    exportOrdersToExcel(filteredOrders, recipes, `Reporte_Menu_${selectedDate}.xlsx`);
+    void exportOrdersToExcel(filteredOrders, recipes, `Reporte_Menu_${selectedDate}.xlsx`);
   };
 
   // --- Batch Order Logic (Dynamic) ---

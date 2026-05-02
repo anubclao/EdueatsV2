@@ -4,7 +4,7 @@ import { Salad, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const Login = () => {
-  const { login, loginWithEmail } = useAuth();
+  const { loginWithEmail } = useAuth();
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
 

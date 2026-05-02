@@ -1,10 +1,5 @@
+import type ExcelJS from 'exceljs';
 import { Order, Recipe, User } from "../types";
-
-declare global {
-  interface Window {
-    XLSX: typeof import('xlsx');
-  }
-}
 
 // --- Helper Functions ---
 const getRecipeName = (id: string, recipes: Recipe[]) => recipes.find(r => r.id === id)?.name || 'No seleccionado';
@@ -19,20 +14,21 @@ const translateCategory = (cat: string) => {
   return map[cat] || cat;
 };
 
-// --- Standard Single Day Report (Legacy support) ---
-export const exportOrdersToExcel = (orders: Order[], recipes: Recipe[], fileName = "Reporte_Casino.xlsx") => {
-  if (!window.XLSX) {
-    alert("La librería de Excel no se ha cargado.");
-    return;
-  }
-  
-  // Reuse the logic, but wrap it in a workbook
-  const workbook = window.XLSX.utils.book_new();
-  
-  // ... (Logica anterior simplificada o mantenida si se prefiere, aquí adaptamos para usar la nueva estructura si se desea, 
-  // pero mantendré la función original refactorizada para usar el writer común si fuera necesario. 
-  // Por simplicidad en este parche, mantengo la lógica original para no romper dashboard actual).
+const downloadWorkbook = async (workbook: ExcelJS.Workbook, fileName: string) => {
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
+// --- Standard Single Day Report ---
+export const exportOrdersToExcel = async (orders: Order[], recipes: Recipe[], fileName = "Reporte_Casino.xlsx") => {
+  const { default: ExcelJS } = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
   const validOrders = orders.filter(o => o.status === 'confirmed');
 
   // Sheet 1: Resumen
@@ -44,115 +40,142 @@ export const exportOrdersToExcel = (orders: Order[], recipes: Recipe[], fileName
     });
   });
 
-  const summaryData = Object.entries(recipeCounts).map(([key, count]) => {
+  const summaryRows = Object.entries(recipeCounts).map(([key, count]) => {
     const [category, recipeId] = key.split('|');
-    return {
-      "Categoría": translateCategory(category),
-      "Plato": getRecipeName(recipeId, recipes),
-      "Cantidad Total": count
-    };
-  }).sort((a, b) => a["Categoría"].localeCompare(b["Categoría"]));
+    return [translateCategory(category), getRecipeName(recipeId, recipes), count];
+  }).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+
+  const summarySheet = workbook.addWorksheet('Resumen Cocina');
+  summarySheet.columns = [
+    { header: 'Categoría', key: 'cat', width: 18 },
+    { header: 'Plato', key: 'plato', width: 30 },
+    { header: 'Cantidad Total', key: 'qty', width: 16 },
+  ];
+  summaryRows.forEach(r => summarySheet.addRow(r));
 
   // Sheet 2: Detalle
-  const detailData = validOrders.map(order => {
-    const starterId = order.items.find(i => i.category === 'starter')?.recipeId;
-    const mainId = order.items.find(i => i.category === 'main')?.recipeId;
-    const dessertId = order.items.find(i => i.category === 'dessert')?.recipeId;
-    const snackId = order.items.find(i => i.category === 'snack')?.recipeId;
+  const detailSheet = workbook.addWorksheet('Listado por Curso');
+  detailSheet.columns = [
+    { header: 'Grado', key: 'grado', width: 8 },
+    { header: 'Sección', key: 'seccion', width: 10 },
+    { header: 'Estudiante', key: 'nombre', width: 25 },
+    { header: 'Alergias/Obs', key: 'alergias', width: 20 },
+    { header: 'Entrada', key: 'entrada', width: 22 },
+    { header: 'Plato Fuerte', key: 'main', width: 22 },
+    { header: 'Postre', key: 'postre', width: 22 },
+    { header: 'Refrigerio', key: 'snack', width: 22 },
+  ];
 
-    return {
-      "Grado": order.studentGrade,
-      "Sección": order.studentSection || '-',
-      "Estudiante": order.studentName,
-      "Alergias/Obs": order.studentAllergies || 'Ninguna',
-      "Entrada": starterId ? getRecipeName(starterId, recipes) : '-',
-      "Plato Fuerte": mainId ? getRecipeName(mainId, recipes) : '-',
-      "Postre": dessertId ? getRecipeName(dessertId, recipes) : '-',
-      "Refrigerio": snackId ? getRecipeName(snackId, recipes) : '-',
-    };
-  }).sort((a, b) => a.Grado - b.Grado);
+  [...validOrders]
+    .sort((a, b) => (a.studentGrade ?? 0) - (b.studentGrade ?? 0))
+    .forEach(order => {
+      const starterId = order.items.find(i => i.category === 'starter')?.recipeId;
+      const mainId = order.items.find(i => i.category === 'main')?.recipeId;
+      const dessertId = order.items.find(i => i.category === 'dessert')?.recipeId;
+      const snackId = order.items.find(i => i.category === 'snack')?.recipeId;
+      detailSheet.addRow([
+        order.studentGrade,
+        order.studentSection || '-',
+        order.studentName,
+        order.studentAllergies || 'Ninguna',
+        starterId ? getRecipeName(starterId, recipes) : '-',
+        mainId ? getRecipeName(mainId, recipes) : '-',
+        dessertId ? getRecipeName(dessertId, recipes) : '-',
+        snackId ? getRecipeName(snackId, recipes) : '-',
+      ]);
+    });
 
-  const summarySheet = window.XLSX.utils.json_to_sheet(summaryData);
-  window.XLSX.utils.book_append_sheet(workbook, summarySheet, "Resumen Cocina");
-
-  const detailSheet = window.XLSX.utils.json_to_sheet(detailData);
-  window.XLSX.utils.book_append_sheet(workbook, detailSheet, "Listado por Curso");
-
-  window.XLSX.writeFile(workbook, fileName);
+  await downloadWorkbook(workbook, fileName);
 };
 
-// --- NEW: Advanced Range Report ---
-export const generateAdvancedReport = (
-  orders: Order[], 
-  // users parameter removed as it was unused in logic
-  recipes: Recipe[], 
-  dateRange: {start: string, end: string},
-  missingOrdersData: {date: string, user: User}[]
+// --- Advanced Range Report ---
+export const generateAdvancedReport = async (
+  orders: Order[],
+  recipes: Recipe[],
+  dateRange: { start: string, end: string },
+  missingOrdersData: { date: string, user: User }[]
 ) => {
-  if (!window.XLSX) {
-    alert("Excel library not loaded");
-    return;
-  }
+  const { default: ExcelJS } = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
 
-  const workbook = window.XLSX.utils.book_new();
+  // 1. Detalle Completo
+  const sheetOrders = workbook.addWorksheet('Detalle Completo');
+  sheetOrders.columns = [
+    { header: 'Fecha', key: 'fecha', width: 13 },
+    { header: 'ID Pedido', key: 'id', width: 11 },
+    { header: 'Rol', key: 'rol', width: 16 },
+    { header: 'Grado', key: 'grado', width: 8 },
+    { header: 'Sección', key: 'seccion', width: 9 },
+    { header: 'Nombre', key: 'nombre', width: 26 },
+    { header: 'Entrada', key: 'entrada', width: 22 },
+    { header: 'Plato Fuerte', key: 'main', width: 26 },
+    { header: 'Postre', key: 'postre', width: 22 },
+    { header: 'Refrigerio', key: 'snack', width: 22 },
+    { header: 'Alergias', key: 'alergias', width: 22 },
+  ];
 
-  // 1. DATASET: All Orders in Range (Detailed)
-  const fullLog = orders.map(o => {
-    const starter = o.items.find(i => i.category === 'starter')?.recipeId;
-    const main = o.items.find(i => i.category === 'main')?.recipeId;
-    const dessert = o.items.find(i => i.category === 'dessert')?.recipeId;
-    const snack = o.items.find(i => i.category === 'snack')?.recipeId;
+  [...orders]
+    .sort((a, b) => a.date.localeCompare(b.date) || String(a.studentGrade ?? '').localeCompare(String(b.studentGrade ?? '')))
+    .forEach(o => {
+      const starter = o.items.find(i => i.category === 'starter')?.recipeId;
+      const main = o.items.find(i => i.category === 'main')?.recipeId;
+      const dessert = o.items.find(i => i.category === 'dessert')?.recipeId;
+      const snack = o.items.find(i => i.category === 'snack')?.recipeId;
+      sheetOrders.addRow([
+        o.date,
+        o.id.slice(0, 8),
+        o.studentGrade ? 'Estudiante' : 'Staff/Visitante',
+        o.studentGrade || '-',
+        o.studentSection || '-',
+        o.studentName,
+        starter ? getRecipeName(starter, recipes) : '',
+        main ? getRecipeName(main, recipes) : '',
+        dessert ? getRecipeName(dessert, recipes) : '',
+        snack ? getRecipeName(snack, recipes) : '',
+        o.studentAllergies || '',
+      ]);
+    });
 
-    return {
-      "Fecha": o.date,
-      "ID Pedido": o.id.slice(0,8),
-      "Rol": o.studentGrade ? 'Estudiante' : 'Staff/Visitante',
-      "Grado": o.studentGrade || '-',
-      "Sección": o.studentSection || '-',
-      "Nombre": o.studentName,
-      "Entrada": starter ? getRecipeName(starter, recipes) : '',
-      "Plato Fuerte": main ? getRecipeName(main, recipes) : '',
-      "Postre": dessert ? getRecipeName(dessert, recipes) : '',
-      "Refrigerio": snack ? getRecipeName(snack, recipes) : '',
-      "Alergias": o.studentAllergies || ''
-    };
-  }).sort((a, b) => a.Fecha.localeCompare(b.Fecha) || a.Grado.toString().localeCompare(b.Grado.toString()));
+  // 2. Usuarios Sin Pedido
+  const sheetMissing = workbook.addWorksheet('Usuarios Sin Pedido');
+  sheetMissing.columns = [
+    { header: 'Fecha Faltante', key: 'fecha', width: 16 },
+    { header: 'Usuario', key: 'usuario', width: 26 },
+    { header: 'Email', key: 'email', width: 26 },
+    { header: 'Rol', key: 'rol', width: 11 },
+    { header: 'Grado', key: 'grado', width: 9 },
+  ];
 
-  const sheetOrders = window.XLSX.utils.json_to_sheet(fullLog);
-  sheetOrders['!cols'] = [{wch:12}, {wch:10}, {wch:10}, {wch:8}, {wch:8}, {wch:25}, {wch:20}, {wch:25}, {wch:20}, {wch:20}, {wch:20}];
-  window.XLSX.utils.book_append_sheet(workbook, sheetOrders, "Detalle Completo");
+  [...missingOrdersData]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .forEach(item => {
+      sheetMissing.addRow([
+        item.date,
+        item.user.name,
+        item.user.email,
+        item.user.role === 'student' ? 'Estudiante' : 'Staff',
+        item.user.grade || '-',
+      ]);
+    });
 
-  // 2. DATASET: Missing Orders (Audit)
-  const missingLog = missingOrdersData.map(item => ({
-    "Fecha Faltante": item.date,
-    "Usuario": item.user.name,
-    "Email": item.user.email,
-    "Rol": item.user.role === 'student' ? 'Estudiante' : 'Staff',
-    "Grado": item.user.grade || '-'
-  })).sort((a, b) => a["Fecha Faltante"].localeCompare(b["Fecha Faltante"]));
-
-  const sheetMissing = window.XLSX.utils.json_to_sheet(missingLog);
-  sheetMissing['!cols'] = [{wch:15}, {wch:25}, {wch:25}, {wch:10}, {wch:8}];
-  window.XLSX.utils.book_append_sheet(workbook, sheetMissing, "Usuarios Sin Pedido");
-
-  // 3. DATASET: Indicators (Consumption vs Supply)
-  // Calculate top dishes
+  // 3. Indicadores Consumo
   const dishCounts: Record<string, number> = {};
   orders.forEach(o => {
-      o.items.forEach(i => {
-          const name = getRecipeName(i.recipeId, recipes);
-          dishCounts[name] = (dishCounts[name] || 0) + 1;
-      });
+    o.items.forEach(i => {
+      const name = getRecipeName(i.recipeId, recipes);
+      dishCounts[name] = (dishCounts[name] || 0) + 1;
+    });
   });
-  
-  const indicatorsLog = Object.entries(dishCounts)
-    .map(([dish, count]) => ({ "Plato": dish, "Total Consumido": count }))
-    .sort((a,b) => b["Total Consumido"] - a["Total Consumido"]);
 
-  const sheetIndicators = window.XLSX.utils.json_to_sheet(indicatorsLog);
-  sheetIndicators['!cols'] = [{wch:30}, {wch:15}];
-  window.XLSX.utils.book_append_sheet(workbook, sheetIndicators, "Indicadores Consumo");
+  const sheetIndicators = workbook.addWorksheet('Indicadores Consumo');
+  sheetIndicators.columns = [
+    { header: 'Plato', key: 'plato', width: 32 },
+    { header: 'Total Consumido', key: 'total', width: 17 },
+  ];
 
-  // Export
-  window.XLSX.writeFile(workbook, `Reporte_General_${dateRange.start}_al_${dateRange.end}.xlsx`);
+  Object.entries(dishCounts)
+    .sort((a, b) => b[1] - a[1])
+    .forEach(([dish, count]) => sheetIndicators.addRow([dish, count]));
+
+  await downloadWorkbook(workbook, `Reporte_General_${dateRange.start}_al_${dateRange.end}.xlsx`);
 };

@@ -44,9 +44,7 @@ export const SurveyManager = () => {
 
     if (activeTab === 'pqr') {
       // Load all complaints and claims across all periods
-      const [complaints, claims] = await Promise.all([
-        db.getSurveys(undefined),
-      ]);
+      const complaints = await db.getSurveys(undefined);
       const pqrs = complaints.filter(s => s.type === 'complaint' || s.type === 'claim');
       setPqrList(pqrs);
     }
