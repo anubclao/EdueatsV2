@@ -295,7 +295,7 @@ export const Layout = ({ children }: { children?: ReactNode }) => {
              </button>
           </div>
         </header>
-        <div className="flex-1 p-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full pb-safe overflow-x-hidden">
+        <div className="flex-1 p-3 sm:p-5 md:p-8 max-w-7xl mx-auto w-full pb-safe overflow-x-hidden">
           <Outlet />
         </div>
       </main>
