@@ -4,9 +4,21 @@ import type {
   GlobalVariable, GeneratedReport
 } from '../types';
 
-// En desarrollo: vacío (el proxy Vite redirige /api → localhost:3001)
-// En producción (Hostinger): define VITE_API_BASE=https://tu-dominio.com en las variables de entorno
-const BASE = (import.meta.env.VITE_API_BASE ?? '') + '/api';
+const getRuntimeApiBase = () => {
+  const metaValue = document
+    .querySelector('meta[name="edueats-api-base"]')
+    ?.getAttribute('content')
+    ?.trim();
+
+  const windowValue = (window as Window & { __EDUEATS_API_BASE__?: string }).__EDUEATS_API_BASE__?.trim();
+  const configuredBase = windowValue || metaValue || '';
+
+  if (!configuredBase) return '/api';
+  if (configuredBase.endsWith('/api')) return configuredBase;
+  return `${configuredBase.replace(/\/+$/, '')}/api`;
+};
+
+const BASE = getRuntimeApiBase();
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(BASE + path, init);
