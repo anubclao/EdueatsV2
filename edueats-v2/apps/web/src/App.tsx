@@ -7,6 +7,7 @@ const Login = lazy(() => import('./pages/Login').then((module) => ({ default: mo
 const Register = lazy(() => import('./pages/Register').then((module) => ({ default: module.Register })));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail').then((module) => ({ default: module.VerifyEmail })));
 const PendingVerify = lazy(() => import('./pages/PendingVerify').then((module) => ({ default: module.PendingVerify })));
+const ChatAssistant = lazy(() => import('./pages/ChatAssistant').then((module) => ({ default: module.ChatAssistant })));
 const Dashboard = lazy(() => import('./pages/admin/Dashboard').then((module) => ({ default: module.Dashboard })));
 const Recipes = lazy(() => import('./pages/admin/Recipes').then((module) => ({ default: module.Recipes })));
 const MenuPlanner = lazy(() => import('./pages/admin/MenuPlanner').then((module) => ({ default: module.MenuPlanner })));
@@ -92,6 +93,7 @@ const AppRoutes = () => {
           <Route path="notifications" element={<Notifications />} />
           <Route path="surveys" element={<SurveyManager />} />
           <Route path="global-variables" element={<GlobalVariables />} />
+          <Route path="assistant" element={<ChatAssistant />} />
         </Route>
 
         {/* Protected Student Routes (Now accessible by Teacher, Staff, Visitor) */}
@@ -100,6 +102,7 @@ const AppRoutes = () => {
           <Route path="dashboard" element={<StudentDashboard />} />
           <Route path="order/:date" element={<OrderFlow />} />
           <Route path="survey" element={<SurveyForm />} />
+          <Route path="assistant" element={<ChatAssistant />} />
         </Route>
 
         {/* Default redirect */}

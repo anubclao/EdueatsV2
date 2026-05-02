@@ -1,6 +1,6 @@
 import { useState, useEffect, ReactNode } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, LayoutDashboard, CalendarDays, ChefHat, Salad, Moon, Sun, Users, Tags, Shield, Menu, X, CalendarRange, FileBarChart, Megaphone, MessageSquare, HeartHandshake, Settings, History } from 'lucide-react';
+import { LogOut, LayoutDashboard, CalendarDays, ChefHat, Salad, Moon, Sun, Users, Tags, Shield, Menu, X, CalendarRange, FileBarChart, Megaphone, MessageSquare, HeartHandshake, Settings, History, Bot } from 'lucide-react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 interface NavItemProps {
   to: string;
@@ -148,8 +148,10 @@ export const Layout = ({ children }: { children?: ReactNode }) => {
     '/admin/users': 'Usuarios',
     '/admin/roles': 'Roles y Permisos',
     '/admin/global-variables': 'Variables Globales',
+    '/admin/assistant': 'Asistente EduEats',
     '/student/dashboard': 'Mi Semana',
     '/student/survey': 'Calificar Servicio',
+    '/student/assistant': 'Asistente EduEats',
   };
   const currentPageName = pageNames[location.pathname] ?? 'EduEats';
 
@@ -165,6 +167,7 @@ export const Layout = ({ children }: { children?: ReactNode }) => {
           <NavItem to="/admin/menu" icon={CalendarRange} label="Planificador de Menú" />
           <NavItem to="/admin/notifications" icon={Megaphone} label="Notificaciones" />
           <NavItem to="/admin/surveys" icon={MessageSquare} label="Encuestas y PQR" />
+          <NavItem to="/admin/assistant" icon={Bot} label="Asistente EduEats" />
           <CollapsibleNavItem icon={FileBarChart} label="Reportes" baseRoute="/admin/reports">
             <NavItem to="/admin/reports/overview" label="Reportes Generales" isSubItem />
             <NavItem to="/admin/reports/kpi" label="Métricas KPI" isSubItem />
@@ -186,6 +189,7 @@ export const Layout = ({ children }: { children?: ReactNode }) => {
           </div>
           <NavItem to="/student/dashboard" icon={CalendarDays} label="Mi Semana" />
           <NavItem to="/student/survey" icon={HeartHandshake} label="Calificar Servicio" />
+          <NavItem to="/student/assistant" icon={Bot} label="Asistente EduEats" />
         </>
       )}
     </div>

@@ -1,9 +1,12 @@
 import cors from 'cors';
 import express from 'express';
 import fs from 'fs';
+import helmet from 'helmet';
 import path from 'path';
+import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
 import { categoriesRouter } from './routes/categories.js';
+import { chatbotRouter } from './routes/chatbot.js';
 import { healthRouter } from './routes/health.js';
 import { menusRouter } from './routes/menus.js';
 import { notificationsRouter } from './routes/notifications.js';
@@ -35,6 +38,51 @@ function normalizeOrigin(value: string) {
 export function createApp() {
   const app = express();
 
+  // ── Seguridad: headers HTTP ──────────────────────────────────────────────
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          frameSrc: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+        },
+      },
+      hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    })
+  );
+
+  // ── Rate limiting global: 200 req / min por IP ───────────────────────────
+  const globalLimiter = rateLimit({
+    windowMs: 60_000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Demasiadas solicitudes, intenta en un momento.' },
+  });
+  app.use('/api/', globalLimiter);
+
+  // ── Rate limiting estricto en auth: 10 req / 15 min por IP ──────────────
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60_000,
+    max: 10,
+    skipSuccessfulRequests: false,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Demasiados intentos. Intenta en 15 minutos.' },
+  });
+  app.use('/api/users/register', authLimiter);
+  app.use('/api/users/verify', authLimiter);
+  app.use('/api/users/resend-verification', authLimiter);
+
   const origins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map(normalizeOrigin)
     : ['http://localhost:5173'];
@@ -50,7 +98,7 @@ export function createApp() {
     })
   );
 
-  app.use(express.json());
+  app.use(express.json({ limit: '50kb' }));
 
   // Serve uploaded images
   const imagesPath = path.join(__dirname, '..', '..', '..', '..', 'images');
@@ -68,6 +116,7 @@ export function createApp() {
   app.use('/api/notifications', notificationsRouter);
   app.use('/api/variables', variablesRouter);
   app.use('/api/reports', reportsRouter);
+  app.use('/api/chatbot', chatbotRouter);
 
   // Serve React frontend in production
   if (process.env.NODE_ENV === 'production') {

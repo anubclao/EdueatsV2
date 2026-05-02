@@ -160,3 +160,17 @@ export interface UnconfirmedMenuReportItem {
   date: string; // YYYY-MM-DD
   recipes: string[]; // List of recipe IDs for this menu
 }
+
+export interface ChatbotSource {
+  id: string;
+  title: string;
+  confidence?: number;
+}
+
+export interface ChatbotResponse {
+  answer: string;
+  sources: ChatbotSource[];
+  confidence: number;
+  fallback: boolean;
+  modelUsed: string;
+}

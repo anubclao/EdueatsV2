@@ -1,7 +1,7 @@
 import type {
   User, Recipe, CategoryDef, RoleDef, DailyMenuConfig, Order,
   RecurringPreference, SystemNotification, SurveyDefinition, SurveyResult,
-  GlobalVariable, GeneratedReport
+  GlobalVariable, GeneratedReport, ChatbotResponse
 } from '../types';
 
 const getRuntimeApiBase = () => {
@@ -109,6 +109,10 @@ export const db = {
   updateSurvey: (s: SurveyResult) => put<void>(`/surveys/results/${s.id}`, s),
   hasUserResponded: (userId: string, surveyDefId: string) =>
     get<boolean>(`/surveys/results/check?userId=${userId}&surveyDefId=${surveyDefId}`),
+
+  // Chatbot
+  askChatbot: (message: string, sessionId?: string) =>
+    post<ChatbotResponse>('/chatbot', { message, sessionId }),
 
   // init es no-op; el servidor maneja la inicialización
   init: () => {},
