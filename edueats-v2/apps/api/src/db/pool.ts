@@ -7,6 +7,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 config({ path: path.resolve(__dirname, '../../../../.env') });
 
 const isTruthy = (value?: string) => /^(1|true|yes|on|required)$/i.test(value ?? '');
+const asPositiveInt = (value: string | undefined, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+};
 
 const dbConfig = {
   host: process.env.DB_HOST ?? 'localhost',
@@ -15,7 +19,8 @@ const dbConfig = {
   password: process.env.DB_PASS ?? '',
   database: process.env.DB_NAME ?? 'edueat',
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: asPositiveInt(process.env.DB_POOL_CONNECTION_LIMIT, 20),
+  queueLimit: asPositiveInt(process.env.DB_POOL_QUEUE_LIMIT, 0),
   connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS ?? 10000),
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
@@ -34,6 +39,8 @@ console.log(
     user: dbConfig.user,
     database: dbConfig.database,
     ssl: Boolean(dbConfig.ssl),
+    connectionLimit: dbConfig.connectionLimit,
+    queueLimit: dbConfig.queueLimit,
     connectTimeout: dbConfig.connectTimeout,
   })
 );

@@ -106,6 +106,13 @@ CREATE TABLE IF NOT EXISTS order_items (
   CONSTRAINT fk_oi_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Índices de rendimiento para carga y reportes de pedidos
+CREATE INDEX IF NOT EXISTS idx_orders_student_date ON orders(student_id, date);
+CREATE INDEX IF NOT EXISTS idx_orders_date_status ON orders(date, status);
+CREATE INDEX IF NOT EXISTS idx_orders_timestamp ON orders(timestamp);
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_recipe_id ON order_items(recipe_id);
+
 -- ============================================================
 -- 7. RECURRING PREFERENCES
 -- ============================================================
