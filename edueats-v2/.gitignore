@@ -1,5 +1,13 @@
 node_modules/
-dist/
 .env
 .env.local
 coverage/
+# Ignorar TypeScript compilado del API
+apps/api/dist/*.js
+apps/api/dist/*.js.map
+apps/api/dist/*.d.ts
+apps/api/dist/routes/
+apps/api/dist/db/
+# Ignorar el dist de Vite (se copia a apps/api/dist/web/ con el build)
+apps/web/dist/
+# apps/api/dist/web/ se INCLUYE para que Hostinger tenga el frontend
