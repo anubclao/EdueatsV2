@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
-import { sendSchoolEmail } from '../services/mailer';
 import { Loader2, ArrowRight, Clock, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -48,13 +47,6 @@ export const VerifyEmail = () => {
     const result = await db.resendVerificationToken(user.email);
 
     if (result.success && result.token) {
-        const link = `${window.location.origin}/#/verify?token=${result.token}`;
-        const html = `
-          <h1>Nuevo enlace de verificación</h1>
-          <p>El enlace anterior expiró. Usa este nuevo link:</p>
-          <a href="${link}">Verificar Cuenta</a>
-        `;
-        await sendSchoolEmail(user.email, 'Nuevo enlace de verificación - EduEats', html);
         alert('Se ha enviado un nuevo enlace a tu correo.');
         navigate('/pending-verify');
     } else {
