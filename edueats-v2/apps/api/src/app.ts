@@ -62,7 +62,8 @@ export function createApp() {
       ? path.resolve(process.cwd(), process.env.WEB_DIST_PATH)
       : null;
 
-    const webDistCandidates = [bundledWebDist, workspaceWebDist, envWebDist].filter(Boolean) as string[];
+    // WEB_DIST_PATH tiene prioridad para que Hostinger use siempre el build fresco
+    const webDistCandidates = [envWebDist, bundledWebDist, workspaceWebDist].filter(Boolean) as string[];
     const webDist = webDistCandidates.find((candidate) => fs.existsSync(path.join(candidate, 'index.html')));
 
     if (!webDist) {
