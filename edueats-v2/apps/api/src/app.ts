@@ -18,17 +18,31 @@ import { variablesRouter } from './routes/variables.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function normalizeOrigin(value: string) {
+  const trimmed = value.trim();
+
+  try {
+    const url = new URL(trimmed);
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    const protocol = url.protocol.toLowerCase();
+    const port = url.port ? `:${url.port}` : '';
+    return `${protocol}//${host}${port}`;
+  } catch {
+    return trimmed.toLowerCase().replace(/\/+$/, '').replace(/^www\./, '');
+  }
+}
+
 export function createApp() {
   const app = express();
 
   const origins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim().toLowerCase())
+    ? process.env.CORS_ORIGIN.split(',').map(normalizeOrigin)
     : ['http://localhost:5173'];
 
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || origins.includes(origin.toLowerCase())) return callback(null, true);
+        if (!origin || origins.includes(normalizeOrigin(origin))) return callback(null, true);
         return callback(new Error('CORS bloqueado'));
       },
       credentials: true,
