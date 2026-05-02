@@ -43,6 +43,7 @@ export function createApp() {
     cors({
       origin: (origin, callback) => {
         if (!origin || origins.includes(normalizeOrigin(origin))) return callback(null, true);
+        console.error('[CORS] Origin bloqueado:', origin, 'Permitidos:', origins.join(', '));
         return callback(new Error('CORS bloqueado'));
       },
       credentials: true,

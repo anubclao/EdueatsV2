@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 import { createApp } from './app.js';
+import { pool } from './db/pool.js';
 
 config();
 
@@ -20,4 +21,13 @@ if (port === 3306 || (!Number.isNaN(dbPort) && port === dbPort)) {
 
 app.listen(port, () => {
   console.log(`EduEats API v2 running on http://localhost:${port}`);
+
+  pool
+    .query('SELECT 1')
+    .then(() => {
+      console.log('[startup] MySQL connection OK');
+    })
+    .catch((error) => {
+      console.error('[startup] MySQL connection failed:', error);
+    });
 });

@@ -7,7 +7,8 @@ healthRouter.get('/', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
     res.json({ status: 'ok', db: 'mysql', dbConnection: 'ready' });
-  } catch {
+  } catch (error) {
+    console.error('[health] DB check failed:', error);
     res.status(500).json({ status: 'degraded', db: 'mysql', dbConnection: 'error' });
   }
 });
