@@ -70,7 +70,7 @@ export const db = {
   updateUser:   (u: User) => put<{ success: boolean; message?: string }>(`/users/${u.id}`, u),
   deleteUser:   (id: string) => del<void>(`/users/${id}`),
   findUserByEmail: (email: string) =>
-    get<User | null>(`/users/email/${encodeURIComponent(email)}`).catch(() => null as User | null),
+    get<User | null>(`/users/email/${encodeURIComponent(email)}`),
   verifyUser: (token: string) =>
     post<{ status: 'success' | 'invalid' | 'expired' }>('/users/verify', { token }),
   resendVerificationToken: (email: string) =>

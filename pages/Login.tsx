@@ -12,10 +12,14 @@ export const Login = () => {
     e.preventDefault();
     setError('');
 
-    if (await loginWithEmail(email)) {
-      // AuthContext/Router handles redirect based on role
-    } else {
-      setError("No encontramos una cuenta con este correo. Verifica o regístrate.");
+    try {
+      if (await loginWithEmail(email)) {
+        // AuthContext/Router handles redirect based on role
+      } else {
+        setError("No encontramos una cuenta con este correo. Verifica o regístrate.");
+      }
+    } catch {
+      setError('No se pudo conectar con el servidor. Verifica la configuracion del backend e intenta nuevamente.');
     }
   };
 
