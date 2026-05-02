@@ -55,13 +55,21 @@ export function createApp() {
 
   // Serve React frontend in production
   if (process.env.NODE_ENV === 'production') {
-    const webDist = path.join(__dirname, '..', '..', 'web', 'dist');
+    const webDist = process.env.WEB_DIST_PATH
+      ? path.resolve(process.cwd(), process.env.WEB_DIST_PATH)
+      : path.join(__dirname, '..', '..', 'web', 'dist');
+
     app.use(express.static(webDist));
+
     // SPA fallback — any non-API route returns index.html
     app.get('*', (req, res) => {
       if (req.path.startsWith('/api/') || req.path.startsWith('/images/')) {
         return res.status(404).json({ error: 'Not found' });
       }
+      if (req.path.startsWith('/assets/') || /\.[a-zA-Z0-9]+$/.test(req.path)) {
+        return res.status(404).json({ error: 'Asset not found' });
+      }
+
       res.sendFile(path.join(webDist, 'index.html'));
     });
   }
