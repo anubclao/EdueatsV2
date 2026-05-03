@@ -7,21 +7,27 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 config({ path: path.resolve(__dirname, '../../../../.env') });
 
 const isTruthy = (value?: string) => /^(1|true|yes|on|required)$/i.test(value ?? '');
+const asEnvString = (value?: string) => (value ?? '').trim().replace(/^['\"]|['\"]$/g, '');
 const asPositiveInt = (value: string | undefined, fallback: number) => {
-  const parsed = Number(value);
+  const parsed = Number(asEnvString(value));
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 };
 
+const dbHost = asEnvString(process.env.DB_HOST) || 'localhost';
+const dbUser = asEnvString(process.env.DB_USER) || 'root';
+const dbName = asEnvString(process.env.DB_NAME) || 'edueat';
+const dbPass = asEnvString(process.env.DB_PASS) || asEnvString(process.env.DB_PASSWORD);
+
 const dbConfig = {
-  host: process.env.DB_HOST ?? 'localhost',
-  port: Number(process.env.DB_PORT ?? 3306),
-  user: process.env.DB_USER ?? 'root',
-  password: process.env.DB_PASS ?? '',
-  database: process.env.DB_NAME ?? 'edueat',
+  host: dbHost,
+  port: Number(asEnvString(process.env.DB_PORT) || 3306),
+  user: dbUser,
+  password: dbPass,
+  database: dbName,
   waitForConnections: true,
   connectionLimit: asPositiveInt(process.env.DB_POOL_CONNECTION_LIMIT, 20),
   queueLimit: asPositiveInt(process.env.DB_POOL_QUEUE_LIMIT, 0),
-  connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS ?? 10000),
+  connectTimeout: Number(asEnvString(process.env.DB_CONNECT_TIMEOUT_MS) || 10000),
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
   ssl: isTruthy(process.env.DB_SSL)
