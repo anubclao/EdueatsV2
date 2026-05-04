@@ -21,10 +21,26 @@ const getRuntimeApiBase = () => {
 const BASE = getRuntimeApiBase();
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, {
-    credentials: 'include',
-    ...init,
-  });
+  const controller = new AbortController();
+  const timeoutMs = 15_000;
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  let res: Response;
+  try {
+    res = await fetch(BASE + path, {
+      credentials: 'include',
+      signal: controller.signal,
+      ...init,
+    });
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      throw new Error('La solicitud tardo demasiado. Verifica la conexion e intenta de nuevo.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+
   if (!res.ok) {
     const text = await res.text();
     throw new Error(text || `HTTP ${res.status}`);
