@@ -5,8 +5,56 @@ import pool from '../db/pool.js';
 import { clearSessionCookie, hashToken, requireAuth, revokeSessionByToken, setSessionCookie } from '../middleware/auth.js';
 import { sendOtpEmail } from '../services/email.js';
 
-const OTP_TTL_MS = 5 * 60 * 1000;
+const parsePositiveInt = (value: string | undefined, fallback: number) => {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+};
+
+const OTP_TTL_MINUTES = Math.min(
+  10,
+  Math.max(5, parsePositiveInt(process.env.OTP_EXPIRES_MINUTES, 5))
+);
+const OTP_TTL_MS = OTP_TTL_MINUTES * 60 * 1000;
+const OTP_RATE_LIMIT_MAX = parsePositiveInt(process.env.OTP_RATE_LIMIT_MAX, 3);
+const OTP_RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.OTP_RATE_LIMIT_WINDOW_MS, 60 * 60 * 1000);
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+type OtpRateBucket = {
+  count: number;
+  resetAt: number;
+};
+
+const otpRateBuckets = new Map<string, OtpRateBucket>();
+
+const rateLimitKeyFromIdentifier = (identifier: string, userEmail?: string) => {
+  const source = (userEmail ?? identifier).trim().toLowerCase();
+  return source.includes('@') ? `email:${source}` : `id:${source}`;
+};
+
+const consumeOtpRateLimit = (key: string) => {
+  const now = Date.now();
+  const bucket = otpRateBuckets.get(key);
+
+  if (!bucket || now >= bucket.resetAt) {
+    otpRateBuckets.set(key, { count: 1, resetAt: now + OTP_RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, retryAfterMs: 0 };
+  }
+
+  if (bucket.count >= OTP_RATE_LIMIT_MAX) {
+    return { allowed: false, retryAfterMs: Math.max(0, bucket.resetAt - now) };
+  }
+
+  bucket.count += 1;
+  otpRateBuckets.set(key, bucket);
+  return { allowed: true, retryAfterMs: 0 };
+};
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of otpRateBuckets.entries()) {
+    if (now >= bucket.resetAt) otpRateBuckets.delete(key);
+  }
+}, 5 * 60 * 1000).unref();
 
 const startSchema = z.object({
   identifier: z.string().trim().min(3).max(120),
@@ -102,6 +150,16 @@ authRouter.post('/start', async (req, res) => {
     ) as any[];
 
     const user = rows[0] ?? null;
+    const rateLimitKey = rateLimitKeyFromIdentifier(identifier, user?.email);
+    const rateLimitState = consumeOtpRateLimit(rateLimitKey);
+
+    if (!rateLimitState.allowed) {
+      return res.status(429).json({
+        success: false,
+        message: 'Demasiadas solicitudes de codigo. Intenta nuevamente en unos minutos.',
+        retryAfterSeconds: Math.ceil(rateLimitState.retryAfterMs / 1000),
+      });
+    }
 
     if (user && !Boolean(user.email_verified)) {
       return res.status(403).json({
@@ -135,7 +193,7 @@ authRouter.post('/start', async (req, res) => {
     if (user) {
       console.log(`[auth] OTP para ${user.email}: ${otp}`);
       try {
-        const sent = await sendOtpEmail(user.email, user.name ?? user.email, otp, OTP_TTL_MS / 60_000);
+        const sent = await sendOtpEmail(user.email, user.name ?? user.email, otp, OTP_TTL_MINUTES);
         if (!sent) {
           return res.status(503).json({
             success: false,
