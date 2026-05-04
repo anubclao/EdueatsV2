@@ -5,6 +5,8 @@ import { Plus, Trash2, Search, Pencil, CheckCircle, AlertTriangle, GraduationCap
 
 export const Users = () => {
   const [users, setUsers] = useState<User[]>([]);
+  const [fetchError, setFetchError] = useState('');
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -27,7 +29,16 @@ export const Users = () => {
   const [formData, setFormData] = useState<User>(initialFormState);
 
   const fetchUsers = async () => {
-    setUsers(await db.getUsers());
+    setIsLoadingUsers(true);
+    setFetchError('');
+    try {
+      const data = await db.getUsers();
+      setUsers(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setFetchError(err?.message || 'Error al cargar usuarios. Revisa la conexión con el servidor.');
+    } finally {
+      setIsLoadingUsers(false);
+    }
   };
 
   useEffect(() => {
@@ -385,7 +396,17 @@ export const Users = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-              {filteredUsers.length > 0 ? (
+              {isLoadingUsers ? (
+                <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-400"><div className="flex justify-center"><svg className="animate-spin h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg></div></td></tr>
+              ) : fetchError ? (
+                <tr><td colSpan={5} className="px-6 py-12 text-center">
+                  <div className="inline-flex flex-col items-center gap-3 text-red-500">
+                    <AlertTriangle size={32} className="opacity-60" />
+                    <p className="text-sm font-semibold">{fetchError}</p>
+                    <button onClick={fetchUsers} className="text-xs underline text-primary hover:text-emerald-600">Reintentar</button>
+                  </div>
+                </td></tr>
+              ) : filteredUsers.length > 0 ? (
                 filteredUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <td className="px-6 py-4">
@@ -443,7 +464,7 @@ export const Users = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
                     <UserIcon size={48} className="mx-auto mb-4 opacity-20" />
                     No se encontraron usuarios.
                   </td>
