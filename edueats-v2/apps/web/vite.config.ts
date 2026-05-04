@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     assetsDir: 'assets',
+    chunkSizeWarningLimit: 1000,
   },
   server: {
     proxy: {

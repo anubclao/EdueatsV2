@@ -6,6 +6,9 @@
     "apps/*",
     "packages/*"
   ],
+  "overrides": {
+    "uuid": "^14.0.0"
+  },
   "scripts": {
     "dev:web": "npm run dev -w @edueats/web",
     "dev:api": "npm run dev -w @edueats/api",
