@@ -24,6 +24,7 @@ const dbConfig = {
   user: dbUser,
   password: dbPass,
   database: dbName,
+  charset: 'UTF8MB4_UNICODE_CI',
   waitForConnections: true,
   connectionLimit: asPositiveInt(process.env.DB_POOL_CONNECTION_LIMIT, 20),
   queueLimit: asPositiveInt(process.env.DB_POOL_QUEUE_LIMIT, 0),
