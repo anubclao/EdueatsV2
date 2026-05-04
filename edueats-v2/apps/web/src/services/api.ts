@@ -43,7 +43,16 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
+    let message = text || `HTTP ${res.status}`;
+
+    try {
+      const parsed = JSON.parse(text) as { message?: string; error?: string };
+      message = parsed.message || parsed.error || message;
+    } catch {
+      // Keep original text when response is not JSON.
+    }
+
+    throw new Error(message);
   }
   return res.json() as Promise<T>;
 }

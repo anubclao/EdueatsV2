@@ -36,8 +36,8 @@ export const Login = () => {
       if (result.devOtp) {
         setHint(`Código de prueba (solo desarrollo): ${result.devOtp}`);
       }
-    } catch {
-      setError('No se pudo iniciar el acceso seguro. Intenta nuevamente en unos segundos.');
+    } catch (error: any) {
+      setError(error?.message || 'No se pudo iniciar el acceso seguro. Intenta nuevamente en unos segundos.');
     } finally {
       setLoading(false);
     }

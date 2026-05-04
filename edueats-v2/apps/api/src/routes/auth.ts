@@ -127,10 +127,19 @@ authRouter.post('/start', async (req, res) => {
     if (user) {
       console.log(`[auth] OTP para ${user.email}: ${otp}`);
       try {
-        await sendOtpEmail(user.email, user.name ?? user.email, otp, OTP_TTL_MS / 60_000);
+        const sent = await sendOtpEmail(user.email, user.name ?? user.email, otp, OTP_TTL_MS / 60_000);
+        if (!sent) {
+          return res.status(503).json({
+            success: false,
+            message: 'No pudimos enviar el codigo al correo. Contacta al administrador.',
+          });
+        }
       } catch (emailErr: any) {
         console.error('[auth] Error enviando email OTP:', emailErr?.message);
-        // No cancelamos el flujo: el OTP sigue siendo válido aunque el correo falle
+        return res.status(502).json({
+          success: false,
+          message: 'No pudimos enviar el codigo al correo. Intenta nuevamente en unos minutos.',
+        });
       }
     }
 
