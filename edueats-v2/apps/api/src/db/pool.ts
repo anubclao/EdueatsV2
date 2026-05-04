@@ -54,4 +54,9 @@ console.log(
 
 export const pool = mysql.createPool(dbConfig);
 
+// Force collation on every new connection to avoid utf8mb4_uca1400_ai_ci vs utf8mb4_unicode_ci mismatch (Hostinger MariaDB 10.6+)
+pool.on('connection', (connection) => {
+  connection.query("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+});
+
 export default pool;
