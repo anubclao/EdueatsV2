@@ -83,7 +83,7 @@ const ensureAuthTables = async () => {
       user_agent VARCHAR(255) NULL,
       INDEX idx_auth_otp_user_created (user_id, created_at),
       INDEX idx_auth_otp_expires (expires_at)
-    )
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
   await pool.query(`
@@ -99,7 +99,7 @@ const ensureAuthTables = async () => {
       UNIQUE KEY uq_auth_sessions_token_hash (token_hash),
       INDEX idx_auth_sessions_user (user_id, revoked_at),
       INDEX idx_auth_sessions_expires (expires_at)
-    )
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 };
 

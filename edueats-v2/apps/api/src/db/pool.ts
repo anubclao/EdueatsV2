@@ -54,9 +54,14 @@ console.log(
 
 export const pool = mysql.createPool(dbConfig);
 
-// Force collation on every new connection to avoid utf8mb4_uca1400_ai_ci vs utf8mb4_unicode_ci mismatch (Hostinger MariaDB 10.6+)
-pool.on('connection', (connection) => {
-  connection.query("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
-});
+// Force collation on every acquired connection to avoid
+// utf8mb4_uca1400_ai_ci vs utf8mb4_unicode_ci mismatch (Hostinger MariaDB 10.6+).
+// pool.on('connection') is non-blocking, so we wrap getConnection instead.
+const _getConnection = pool.getConnection.bind(pool);
+pool.getConnection = async () => {
+  const conn = await _getConnection();
+  await conn.query("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+  return conn;
+};
 
 export default pool;
