@@ -31,7 +31,9 @@ const RouteFallback = () => (
 );
 
 const PrivateRoute = ({ children, roles }: { children?: ReactNode, roles: string[] }) => {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) return <RouteFallback />;
   
   // 1. Check Authentication
   if (!user) {
@@ -53,8 +55,10 @@ const PrivateRoute = ({ children, roles }: { children?: ReactNode, roles: string
 };
 
 const AppRoutes = () => {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const ORDERING_ROLES = ['student', 'teacher', 'staff', 'visitor'];
+
+  if (isLoading) return <RouteFallback />;
 
   const getHomeRedirect = () => {
     if (!user) return "/login";

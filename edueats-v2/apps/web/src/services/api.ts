@@ -21,7 +21,10 @@ const getRuntimeApiBase = () => {
 const BASE = getRuntimeApiBase();
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, init);
+  const res = await fetch(BASE + path, {
+    credentials: 'include',
+    ...init,
+  });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(text || `HTTP ${res.status}`);
@@ -86,7 +89,15 @@ export const db = {
   verifyUser: (token: string) =>
     post<{ status: 'success' | 'invalid' | 'expired' }>('/users/verify', { token }),
   resendVerificationToken: (email: string) =>
-    post<{ success: boolean; token?: string; name?: string }>('/users/resend-verification', { email }),
+    post<{ success: boolean }>('/users/resend-verification', { email }),
+
+  // Auth (OTP + cookie session)
+  authStart: (identifier: string) =>
+    post<{ success: boolean; challengeId: string; message: string; devOtp?: string }>('/auth/start', { identifier }),
+  authVerifyOtp: (challengeId: string, otp: string) =>
+    post<{ success: boolean; user: User }>('/auth/verify-otp', { challengeId, otp }),
+  authMe: () => get<User>('/auth/me'),
+  authLogout: () => post<{ success: boolean }>('/auth/logout', {}),
 
   // Preferences
   getPreferences:   (studentId: string)                      => get<RecurringPreference[]>(`/preferences/${studentId}`),

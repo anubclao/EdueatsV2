@@ -1,24 +1,8 @@
 import { useAuth } from '../context/AuthContext';
-import { db } from '../services/db';
-import { LogOut, ArrowRight, ShieldAlert } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { LogOut, ShieldAlert } from 'lucide-react';
 
 export const PendingVerify = () => {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
-
-  // --- Direct Activation Logic ---
-  const handleActivateNow = async () => {
-    if (!user) return;
-
-    const dbUser = await db.findUserByEmail(user.email);
-
-    if (dbUser && dbUser.verificationToken) {
-        navigate(`/verify?token=${dbUser.verificationToken}`);
-    } else {
-        alert("Error: No se encontró un token de activación válido. Intenta iniciar sesión nuevamente.");
-    }
-  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4 transition-colors">
@@ -38,18 +22,12 @@ export const PendingVerify = () => {
           </p>
         </div>
 
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-4 text-sm text-blue-800 dark:text-blue-200">
-          <p>Para garantizar la seguridad, el administrador debe validar tus datos antes de darte acceso total.</p>
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-4 text-sm text-blue-800 dark:text-blue-200 space-y-2">
+          <p>Para garantizar la seguridad, tu cuenta requiere validacion de correo por enlace.</p>
+          <p>Si no encuentras el correo, solicita reenvio desde la pagina de verificacion.</p>
         </div>
 
         <div className="space-y-4 pt-2">
-            <button 
-                onClick={handleActivateNow}
-                className="flex items-center justify-center w-full gap-2 bg-primary text-white hover:bg-emerald-600 py-4 rounded-xl transition-all font-bold text-lg shadow-lg shadow-primary/20 hover:scale-[1.02]"
-            >
-                Activar Cuenta Ahora <ArrowRight size={20} />
-            </button>
-
             <button 
                 onClick={logout}
                 className="flex items-center justify-center w-full gap-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 py-2 rounded-lg transition-colors font-medium"

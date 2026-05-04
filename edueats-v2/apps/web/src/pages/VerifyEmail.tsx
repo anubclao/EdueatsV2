@@ -46,7 +46,7 @@ export const VerifyEmail = () => {
     setIsResending(true);
     const result = await db.resendVerificationToken(user.email);
 
-    if (result.success && result.token) {
+    if (result.success) {
         alert('Se ha enviado un nuevo enlace a tu correo.');
         navigate('/pending-verify');
     } else {

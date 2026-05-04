@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import { categoriesRouter } from './routes/categories.js';
 import { chatbotRouter } from './routes/chatbot.js';
 import { healthRouter } from './routes/health.js';
+import { authRouter } from './routes/auth.js';
 import { menusRouter } from './routes/menus.js';
 import { notificationsRouter } from './routes/notifications.js';
 import { ordersRouter } from './routes/orders.js';
@@ -82,6 +83,8 @@ export function createApp() {
   app.use('/api/users/register', authLimiter);
   app.use('/api/users/verify', authLimiter);
   app.use('/api/users/resend-verification', authLimiter);
+  app.use('/api/auth/start', authLimiter);
+  app.use('/api/auth/verify-otp', authLimiter);
 
   const origins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map(normalizeOrigin)
@@ -105,6 +108,7 @@ export function createApp() {
   app.use('/images', express.static(imagesPath));
 
   app.use('/api/health', healthRouter);
+  app.use('/api/auth', authRouter);
   app.use('/api/users', usersRouter);
   app.use('/api/roles', rolesRouter);
   app.use('/api/categories', categoriesRouter);

@@ -174,3 +174,15 @@ export interface ChatbotResponse {
   fallback: boolean;
   modelUsed: string;
 }
+
+export interface AuthStartResponse {
+  success: boolean;
+  challengeId: string;
+  message: string;
+  devOtp?: string;
+}
+
+export interface AuthVerifyOtpResponse {
+  success: boolean;
+  user: User;
+}

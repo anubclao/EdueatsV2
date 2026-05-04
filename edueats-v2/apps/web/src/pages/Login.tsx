@@ -16,23 +16,43 @@ const FloatingIcon = ({ icon, top, left, size, delay, opacity }: {
 );
 
 export const Login = () => {
-  const { loginWithEmail } = useAuth();
-  const [email, setEmail] = useState('');
+  const { startOtpLogin, verifyOtpLogin } = useAuth();
+  const [identifier, setIdentifier] = useState('');
+  const [otp, setOtp] = useState('');
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [hint, setHint] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleStandardLogin = async (e: FormEvent) => {
+  const handleRequestOtp = async (e: FormEvent) => {
     e.preventDefault();
+    setError('');
+    setHint('');
+    setLoading(true);
+    try {
+      const result = await startOtpLogin(identifier.trim());
+      setChallengeId(result.challengeId);
+      setHint('Te enviamos un código de 6 dígitos a tu correo electrónico. Revisa también la carpeta de spam.');
+      if (result.devOtp) {
+        setHint(`Código de prueba (solo desarrollo): ${result.devOtp}`);
+      }
+    } catch {
+      setError('No se pudo iniciar el acceso seguro. Intenta nuevamente en unos segundos.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!challengeId) return;
     setError('');
     setLoading(true);
     try {
-      if (await loginWithEmail(email)) {
-        // AuthContext/Router handles redirect based on role
-      } else {
-        setError("No encontramos una cuenta con este correo. Verifica o regístrate.");
-      }
+      const ok = await verifyOtpLogin(challengeId, otp.trim());
+      if (!ok) setError('No pudimos validar el codigo. Intenta otra vez.');
     } catch {
-      setError('No se pudo conectar con el servidor. Verifica la configuración del backend e intenta nuevamente.');
+      setError('Codigo invalido o expirado. Solicita uno nuevo.');
     } finally {
       setLoading(false);
     }
@@ -126,31 +146,42 @@ export const Login = () => {
               ¡Bienvenido de vuelta!
             </h1>
             <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-base">
-              Ingresa tu correo para acceder al portal escolar.
+              {challengeId ? 'Ingresa el codigo de 6 digitos.' : 'Ingresa tu correo o codigo escolar para recibir un codigo seguro.'}
             </p>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleStandardLogin} className="space-y-4">
+          <form onSubmit={challengeId ? handleVerifyOtp : handleRequestOtp} className="space-y-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-                Correo Electrónico
+                {challengeId ? 'Codigo OTP' : 'Correo o Codigo Escolar'}
               </label>
               <div className="relative">
                 <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
-                  type="email"
+                  type={challengeId ? 'text' : 'text'}
                   required
-                  placeholder="estudiante@edueats.com"
+                  maxLength={challengeId ? 6 : 120}
+                  pattern={challengeId ? '\\d{6}' : undefined}
+                  placeholder={challengeId ? '123456' : 'estudiante@edueats.com'}
                   className={`w-full pl-9 pr-4 py-3 border rounded-xl outline-none dark:bg-gray-800 dark:text-white transition-all text-sm
                     ${error
                       ? 'border-red-400 focus:ring-2 focus:ring-red-200 bg-red-50 dark:border-red-500/50'
                       : 'border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-primary/40 focus:border-primary bg-white'
                     }`}
-                  value={email}
-                  onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                  value={challengeId ? otp : identifier}
+                  onChange={(e) => {
+                    if (challengeId) setOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
+                    else setIdentifier(e.target.value);
+                    setError('');
+                  }}
                 />
               </div>
+              {hint && !error && (
+                <div className="mt-2 text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-2.5">
+                  {hint}
+                </div>
+              )}
               {error && (
                 <div className="flex items-start gap-2 mt-2 text-red-600 dark:text-red-400 text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-2.5">
                   <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
@@ -170,9 +201,24 @@ export const Login = () => {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
                 </svg>
               ) : (
-                <>Ingresar al Portal <ArrowRight size={16} /></>
+                <>{challengeId ? 'Validar Codigo' : 'Enviar Codigo Seguro'} <ArrowRight size={16} /></>
               )}
             </button>
+
+            {challengeId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setChallengeId(null);
+                  setOtp('');
+                  setHint('');
+                  setError('');
+                }}
+                className="w-full text-sm font-semibold text-gray-600 dark:text-gray-300 hover:underline"
+              >
+                Cambiar correo o codigo escolar
+              </button>
+            )}
           </form>
 
           {/* Divider */}
