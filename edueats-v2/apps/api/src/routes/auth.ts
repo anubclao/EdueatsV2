@@ -97,11 +97,19 @@ authRouter.post('/start', async (req, res) => {
 
   try {
     const [rows] = await pool.execute(
-      'SELECT id, name, email FROM users WHERE email=? OR id=? LIMIT 1',
+      'SELECT id, name, email, email_verified FROM users WHERE email=? OR id=? LIMIT 1',
       [identifier, identifier]
     ) as any[];
 
     const user = rows[0] ?? null;
+
+    if (user && !Boolean(user.email_verified)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Tu cuenta aun no ha sido autorizada por el administrador del colegio.',
+      });
+    }
+
     const challengeId = randomBytes(20).toString('hex');
     const otp = String(randomInt(0, 1_000_000)).padStart(6, '0');
     const salt = randomBytes(12).toString('hex');

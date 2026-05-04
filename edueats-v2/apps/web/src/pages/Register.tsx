@@ -9,6 +9,8 @@ export const Register = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [registrationDone, setRegistrationDone] = useState(false);
+  const [registeredName, setRegisteredName] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -18,7 +20,6 @@ export const Register = () => {
     section: 'A',
     allergies: ''
   });
-  const [activationData, setActivationData] = useState<{token: string, name: string} | null>(null);
 
   const validateEmail = (email: string) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -65,7 +66,8 @@ export const Register = () => {
     try {
       const result = await db.registerUser(newUser);
       if (result.success) {
-        setActivationData({ token: result.token, name: newUser.name });
+        setRegisteredName(newUser.name);
+        setRegistrationDone(true);
       } else {
         setError("¡El usuario ya existe! No puedes registrarte nuevamente con este correo.");
       }
@@ -76,14 +78,8 @@ export const Register = () => {
     }
   };
 
-  const handleDirectActivation = () => {
-    if (activationData) {
-      navigate(`/verify?token=${activationData.token}`);
-    }
-  };
-
-  // --- Vista de Éxito con Botón de Activación ---
-  if (activationData) {
+  // --- Vista de éxito: cuenta creada, pendiente de autorizacion admin ---
+  if (registrationDone) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-4 dark:from-gray-900 dark:to-gray-800 animate-in fade-in duration-500">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full p-8 text-center space-y-6">
@@ -91,21 +87,25 @@ export const Register = () => {
             <CheckCircle className="text-green-600 dark:text-green-400" size={40} />
           </div>
           
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">¡Cuenta Creada!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">¡Solicitud enviada!</h2>
           
           <p className="text-gray-600 dark:text-gray-300">
-            Bienvenido, <strong>{activationData.name}</strong>. Para comenzar a utilizar EduEats, por favor activa tu cuenta haciendo clic en el botón de abajo.
+            Hola, <strong>{registeredName}</strong>. Tu registro fue recibido correctamente y ahora esta pendiente de autorizacion por parte del administrador del colegio.
           </p>
 
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-200">
+            Cuando te autoricen, inicia sesion con tu correo y recibirás un codigo de 6 digitos en ese mismo correo.
+          </div>
+
           <button 
-            onClick={handleDirectActivation}
+            onClick={() => navigate('/login')}
             className="w-full bg-primary hover:bg-emerald-600 text-white font-bold py-4 rounded-xl transition-all shadow-lg hover:shadow-green-500/30 flex items-center justify-center gap-2 transform hover:scale-[1.02]"
           >
-            Activar mi Cuenta <ArrowRight size={20} />
+            Ir al inicio de sesion <ArrowRight size={20} />
           </button>
 
           <p className="text-xs text-gray-400 mt-4">
-            No es necesario revisar tu correo electrónico.
+            No necesitas activar por enlace; solo esperar autorizacion.
           </p>
         </div>
       </div>

@@ -6,13 +6,27 @@ const getTransporter = () => {
         return _transporter;
     const user = process.env.EMAIL_USER;
     const pass = process.env.EMAIL_PASS;
+    const host = process.env.EMAIL_HOST;
+    const port = Number(process.env.EMAIL_PORT || 0);
+    const secure = String(process.env.EMAIL_SECURE || '').toLowerCase() === 'true';
     if (!user || !pass) {
         return null;
     }
-    _transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user, pass },
-    });
+    if (host && Number.isFinite(port) && port > 0) {
+        _transporter = nodemailer.createTransport({
+            host,
+            port,
+            secure,
+            auth: { user, pass },
+        });
+    }
+    else {
+        // Backward-compatible fallback for existing Gmail deployments.
+        _transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user, pass },
+        });
+    }
     return _transporter;
 };
 const otpHtml = (name, otp, expiresMinutes) => `

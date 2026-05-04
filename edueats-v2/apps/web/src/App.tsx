@@ -5,7 +5,6 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 const Layout = lazy(() => import('./components/Layout').then((module) => ({ default: module.Layout })));
 const Login = lazy(() => import('./pages/Login').then((module) => ({ default: module.Login })));
 const Register = lazy(() => import('./pages/Register').then((module) => ({ default: module.Register })));
-const VerifyEmail = lazy(() => import('./pages/VerifyEmail').then((module) => ({ default: module.VerifyEmail })));
 const PendingVerify = lazy(() => import('./pages/PendingVerify').then((module) => ({ default: module.PendingVerify })));
 const ChatAssistant = lazy(() => import('./pages/ChatAssistant').then((module) => ({ default: module.ChatAssistant })));
 const Dashboard = lazy(() => import('./pages/admin/Dashboard').then((module) => ({ default: module.Dashboard })));
@@ -72,7 +71,7 @@ const AppRoutes = () => {
         {/* Public Routes */}
         <Route path="/login" element={!user ? <Login /> : <Navigate to={getHomeRedirect()} />} />
         <Route path="/register" element={!user ? <Register /> : <Navigate to={getHomeRedirect()} />} />
-        <Route path="/verify" element={<VerifyEmail />} />
+        <Route path="/verify" element={<Navigate to="/login" replace />} />
         
         {/* Semi-Protected (Authenticated but Unverified) */}
         <Route path="/pending-verify" element={

@@ -23,8 +23,8 @@ export const PendingVerify = () => {
         </div>
 
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-4 text-sm text-blue-800 dark:text-blue-200 space-y-2">
-          <p>Para garantizar la seguridad, tu cuenta requiere validacion de correo por enlace.</p>
-          <p>Si no encuentras el correo, solicita reenvio desde la pagina de verificacion.</p>
+          <p>Tu cuenta esta en revision del administrador del colegio.</p>
+          <p>Cuando sea aprobada, podras iniciar sesion con tu correo y recibir un codigo de acceso de 6 digitos.</p>
         </div>
 
         <div className="space-y-4 pt-2">
