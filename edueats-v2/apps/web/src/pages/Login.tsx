@@ -146,7 +146,7 @@ export const Login = () => {
               ¡Bienvenido de vuelta!
             </h1>
             <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-base">
-              {challengeId ? 'Ingresa el codigo de 6 digitos.' : 'Ingresa tu correo o codigo escolar para recibir un codigo seguro.'}
+              {challengeId ? 'Ingresa el codigo de 6 digitos.' : 'Ingresa tu correo y recibe tu codigo secreto para acceder al portal escolar.'}
             </p>
           </div>
 
