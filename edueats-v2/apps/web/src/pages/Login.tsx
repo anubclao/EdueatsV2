@@ -59,7 +59,7 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
+    <div className="min-h-dvh flex flex-col md:flex-row">
       {/* ── Left panel: decorative school cafeteria theme ── */}
       <div className="relative hidden md:flex md:w-1/2 lg:w-3/5 flex-col justify-between overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #064e3b 0%, #065f46 30%, #047857 60%, #059669 100%)' }}>
@@ -127,7 +127,7 @@ export const Login = () => {
       </div>
 
       {/* ── Right panel: login form ── */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10 bg-gray-50 dark:bg-gray-900 relative overflow-hidden">
+      <div className="flex-1 flex flex-col items-center justify-center p-5 sm:p-8 bg-gray-50 dark:bg-gray-900 relative overflow-hidden">
         {/* Mobile top accent */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-green-400 to-teal-500 md:hidden" />
 
@@ -139,7 +139,7 @@ export const Login = () => {
           <span className="text-xl font-extrabold text-gray-800 dark:text-white tracking-tight">EduEats</span>
         </div>
 
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-md">
           {/* Heading */}
           <div className="mb-8">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mb-2">
@@ -164,7 +164,7 @@ export const Login = () => {
                   maxLength={challengeId ? 6 : 120}
                   pattern={challengeId ? '\\d{6}' : undefined}
                   placeholder={challengeId ? '123456' : 'estudiante@edueats.com'}
-                  className={`w-full pl-9 pr-4 py-3 border rounded-xl outline-none dark:bg-gray-800 dark:text-white transition-all text-sm
+                  className={`w-full pl-9 pr-4 py-3 border rounded-xl outline-none dark:bg-gray-800 dark:text-white transition-all text-base
                     ${error
                       ? 'border-red-400 focus:ring-2 focus:ring-red-200 bg-red-50 dark:border-red-500/50'
                       : 'border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-primary/40 focus:border-primary bg-white'

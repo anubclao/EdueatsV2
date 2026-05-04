@@ -81,7 +81,7 @@ export const Register = () => {
   // --- Vista de éxito: cuenta creada, pendiente de autorizacion admin ---
   if (registrationDone) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-4 dark:from-gray-900 dark:to-gray-800 animate-in fade-in duration-500">
+      <div className="min-h-dvh flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-4 dark:from-gray-900 dark:to-gray-800 animate-in fade-in duration-500">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full p-8 text-center space-y-6">
           <div className="mx-auto w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
             <CheckCircle className="text-green-600 dark:text-green-400" size={40} />
@@ -114,7 +114,7 @@ export const Register = () => {
 
   // --- Formulario de Registro ---
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-3 sm:p-4 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-dvh flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-3 sm:p-4 dark:from-gray-900 dark:to-gray-800">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-lg w-full p-5 sm:p-8 space-y-4 sm:space-y-6 my-4">
         <div className="text-center">
           <div className="bg-primary/10 w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -184,7 +184,7 @@ export const Register = () => {
 
           {/* Logic: Only show Grade/Section if role is Student */}
           {formData.role === 'student' && (
-            <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-300">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-300">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Grado <span className="text-red-500">*</span></label>
                 <select 
