@@ -17,8 +17,8 @@ if (port === 3306) {
   port = 3001;
 }
 
-app.listen(port, () => {
-  console.log(`EduEats API v2 running on http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`EduEats API v2 running on http://0.0.0.0:${port}`);
 
   pool
     .query('SELECT 1')

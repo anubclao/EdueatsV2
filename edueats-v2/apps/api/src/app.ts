@@ -135,22 +135,24 @@ export function createApp() {
     const webDist = webDistCandidates.find((candidate) => fs.existsSync(path.join(candidate, 'index.html')));
 
     if (!webDist) {
-      throw new Error(`No se encontro dist del frontend. Rutas probadas: ${webDistCandidates.join(', ')}`);
+      console.error(
+        `[startup] No se encontro dist del frontend. Rutas probadas: ${webDistCandidates.join(', ')}`
+      );
+    } else {
+      app.use(express.static(webDist));
+
+      // SPA fallback — any non-API route returns index.html
+      app.get('*', (req, res) => {
+        if (req.path.startsWith('/api/') || req.path.startsWith('/images/')) {
+          return res.status(404).json({ error: 'Not found' });
+        }
+        if (req.path.startsWith('/assets/') || /\.[a-zA-Z0-9]+$/.test(req.path)) {
+          return res.status(404).json({ error: 'Asset not found' });
+        }
+
+        res.sendFile(path.join(webDist, 'index.html'));
+      });
     }
-
-    app.use(express.static(webDist));
-
-    // SPA fallback — any non-API route returns index.html
-    app.get('*', (req, res) => {
-      if (req.path.startsWith('/api/') || req.path.startsWith('/images/')) {
-        return res.status(404).json({ error: 'Not found' });
-      }
-      if (req.path.startsWith('/assets/') || /\.[a-zA-Z0-9]+$/.test(req.path)) {
-        return res.status(404).json({ error: 'Asset not found' });
-      }
-
-      res.sendFile(path.join(webDist, 'index.html'));
-    });
   }
 
   return app;
