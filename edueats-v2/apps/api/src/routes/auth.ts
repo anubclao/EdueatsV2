@@ -57,6 +57,20 @@ const ensureAuthTables = async () => {
 
 const authTablesReady = ensureAuthTables();
 
+const waitAuthTables = async (res: any) => {
+  try {
+    await authTablesReady;
+    return true;
+  } catch (error: any) {
+    console.error('[auth] Error inicializando tablas de autenticacion:', error?.message ?? error);
+    res.status(500).json({
+      success: false,
+      message: 'No se pudo inicializar el servicio de autenticacion. Revisa permisos de base de datos.',
+    });
+    return false;
+  }
+};
+
 const toUserResponse = (u: any) => ({
   id: u.id,
   name: u.name,
@@ -72,7 +86,7 @@ const toUserResponse = (u: any) => ({
 export const authRouter = Router();
 
 authRouter.post('/start', async (req, res) => {
-  await authTablesReady;
+  if (!(await waitAuthTables(res))) return;
 
   const parsed = startSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -132,7 +146,7 @@ authRouter.post('/start', async (req, res) => {
 });
 
 authRouter.post('/verify-otp', async (req, res) => {
-  await authTablesReady;
+  if (!(await waitAuthTables(res))) return;
 
   const parsed = verifySchema.safeParse(req.body);
   if (!parsed.success) {
