@@ -192,20 +192,22 @@ authRouter.post('/start', async (req, res) => {
 
     if (user) {
       console.log(`[auth] OTP para ${user.email}: ${otp}`);
-      try {
-        const sent = await sendOtpEmail(user.email, user.name ?? user.email, otp, OTP_TTL_MINUTES);
-        if (!sent) {
-          return res.status(503).json({
+      if (process.env.NODE_ENV !== 'development') {
+        try {
+          const sent = await sendOtpEmail(user.email, user.name ?? user.email, otp, OTP_TTL_MINUTES);
+          if (!sent) {
+            return res.status(503).json({
+              success: false,
+              message: 'No pudimos enviar el codigo al correo. Contacta al administrador.',
+            });
+          }
+        } catch (emailErr: any) {
+          console.error('[auth] Error enviando email OTP:', emailErr?.message);
+          return res.status(502).json({
             success: false,
-            message: 'No pudimos enviar el codigo al correo. Contacta al administrador.',
+            message: 'No pudimos enviar el codigo al correo. Intenta nuevamente en unos minutos.',
           });
         }
-      } catch (emailErr: any) {
-        console.error('[auth] Error enviando email OTP:', emailErr?.message);
-        return res.status(502).json({
-          success: false,
-          message: 'No pudimos enviar el codigo al correo. Intenta nuevamente en unos minutos.',
-        });
       }
     }
 

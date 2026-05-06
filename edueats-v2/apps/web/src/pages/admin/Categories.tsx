@@ -8,7 +8,7 @@ export const Categories = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   // Form State
-  const initialForm: CategoryDef = { id: '', name: '', order: 0 };
+  const initialForm: CategoryDef = { id: '', name: '', order: 0, exclusiveGroup: '' };
   const [formData, setFormData] = useState<CategoryDef>(initialForm);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -22,7 +22,7 @@ export const Categories = () => {
 
   const handleOpenAdd = () => {
     const nextOrder = categories.length > 0 ? Math.max(...categories.map(c => c.order)) + 1 : 1;
-    setFormData({ id: '', name: '', order: nextOrder });
+    setFormData({ id: '', name: '', order: nextOrder, exclusiveGroup: '' });
     setIsEditing(false);
     setIsModalOpen(true);
   };
@@ -96,6 +96,7 @@ export const Categories = () => {
               <th className="px-6 py-4 font-semibold text-gray-700 dark:text-gray-300 w-24 text-center">Orden</th>
               <th className="px-6 py-4 font-semibold text-gray-700 dark:text-gray-300">Nombre</th>
               <th className="px-6 py-4 font-semibold text-gray-700 dark:text-gray-300">ID Interno</th>
+              <th className="px-6 py-4 font-semibold text-gray-700 dark:text-gray-300">Grupo Exclusivo</th>
               <th className="px-6 py-4 font-semibold text-gray-700 dark:text-gray-300 text-right">Acciones</th>
             </tr>
           </thead>
@@ -123,6 +124,11 @@ export const Categories = () => {
                 </td>
                 <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{cat.name}</td>
                 <td className="px-6 py-4 font-mono text-gray-500 text-xs">{cat.id}</td>
+                <td className="px-6 py-4">
+                  {cat.exclusiveGroup
+                    ? <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-mono">{cat.exclusiveGroup}</span>
+                    : <span className="text-xs text-gray-400">—</span>}
+                </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end gap-2">
                     <button onClick={() => handleEdit(cat)} className="p-1 text-gray-400 hover:text-blue-500">
@@ -165,6 +171,17 @@ export const Categories = () => {
                   value={formData.order} 
                   onChange={e => setFormData({...formData, order: Number(e.target.value)})} 
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Grupo Exclusivo <span className="text-gray-400 font-normal">(opcional)</span></label>
+                <input 
+                  placeholder="ej: proteina"
+                  className="w-full mt-1 border rounded-lg p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" 
+                  value={formData.exclusiveGroup ?? ''} 
+                  onChange={e => setFormData({...formData, exclusiveGroup: e.target.value || undefined})} 
+                />
+                <p className="text-xs text-gray-400 mt-1">Las categorías con el mismo grupo son mutuamente excluyentes en el planificador.</p>
               </div>
 
               {!isEditing && (

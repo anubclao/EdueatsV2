@@ -1,6 +1,6 @@
 import { useState, useEffect, ReactNode } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, LayoutDashboard, CalendarDays, ChefHat, Salad, Moon, Sun, Users, Tags, Shield, Menu, X, CalendarRange, FileBarChart, Megaphone, MessageSquare, HeartHandshake, Settings, History, Bot } from 'lucide-react';
+import { LogOut, LayoutDashboard, CalendarDays, ChefHat, Salad, Moon, Sun, Users, Tags, Shield, Menu, X, CalendarRange, FileBarChart, Megaphone, MessageSquare, HeartHandshake, Settings, History, Bot, GitBranch } from 'lucide-react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 interface NavItemProps {
   to: string;
@@ -145,6 +145,7 @@ export const Layout = ({ children }: { children?: ReactNode }) => {
     '/admin/reports/kpi': 'Métricas KPI',
     '/admin/reports/history': 'Historial de Reportes',
     '/admin/categories': 'Categorías',
+    '/admin/category-conditions': 'Condiciones',
     '/admin/users': 'Usuarios',
     '/admin/roles': 'Roles y Permisos',
     '/admin/global-variables': 'Variables Globales',
@@ -178,6 +179,7 @@ export const Layout = ({ children }: { children?: ReactNode }) => {
             Sistema
           </div>
           <NavItem to="/admin/categories" icon={Tags} label="Categorías" />
+          <NavItem to="/admin/category-conditions" icon={GitBranch} label="Condiciones" />
           <NavItem to="/admin/users" icon={Users} label="Usuarios" />
           <NavItem to="/admin/roles" icon={Shield} label="Roles y Permisos" />
           <NavItem to="/admin/global-variables" icon={Settings} label="Variables Globales" />

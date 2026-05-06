@@ -2,7 +2,7 @@ import { useState, useEffect, FC } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../services/db';
 import { useAuth } from '../../context/AuthContext';
-import { DailyMenuConfig, Recipe, CategoryDef, OrderItem, Order } from '../../types';
+import { DailyMenuConfig, Recipe, CategoryDef, CategoryRule, OrderItem, Order } from '../../types';
 import { ArrowLeft, ArrowRight, Check, AlertTriangle, Utensils, Apple, Coffee, Soup, CircleDashed, Lock, X, Edit2, CheckCircle2, Star, Sparkles, Leaf } from 'lucide-react';
 
 // --- Helpers ---
@@ -171,6 +171,7 @@ export const OrderFlow = () => {
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [selections, setSelections] = useState<Record<string, string | null>>({});
+  const [rules, setRules] = useState<CategoryRule[]>([]);
   
   // States for Read-Only Logic
   const [isReadOnly, setIsReadOnly] = useState(false);
@@ -204,6 +205,9 @@ export const OrderFlow = () => {
         db.getCategories(),
         db.getOrders(),
       ]);
+
+      const allRules = await db.getCategoryRules();
+      setRules(allRules);
 
       const existing = orders.find(o => o.studentId === user?.id && o.date === date);
 
@@ -360,7 +364,36 @@ export const OrderFlow = () => {
   const isVegStep = currentCategory.id === 'vegetarian' || currentCategory.id === 'vegetariano';
   const isVegSelected = selections[currentCategory.id];
 
-  // --- Exclusivity Logic ---
+  // --- Category Rules Helpers ---
+  const isCategoryBlocked = (catId: string, sels: Record<string, string | null>): boolean =>
+    rules.some(r => r.effect === 'blocks' && r.targetCategoryId === catId && !!sels[r.triggerCategoryId]);
+
+  const isCategoryHidden = (catId: string, sels: Record<string, string | null>): boolean => {
+    const reqs = rules.filter(r => r.effect === 'requires' && r.targetCategoryId === catId);
+    if (reqs.length === 0) return false;
+    return !reqs.some(r => !!sels[r.triggerCategoryId]);
+  };
+
+  const isCatAvailable = (catId: string, sels: Record<string, string | null>): boolean =>
+    !isCategoryBlocked(catId, sels) && !isCategoryHidden(catId, sels);
+
+  const getNextAvailableIndex = (from: number, sels: Record<string, string | null>): number => {
+    let next = from + 1;
+    while (next < categories.length && !isCatAvailable(categories[next].id, sels)) next++;
+    return next;
+  };
+
+  const getPrevAvailableIndex = (from: number, sels: Record<string, string | null>): number => {
+    let prev = from - 1;
+    while (prev >= 0 && !isCatAvailable(categories[prev].id, sels)) prev--;
+    return prev;
+  };
+
+  // Active steps for progress bar
+  const activeCategories = categories.filter(c => isCatAvailable(c.id, selections));
+  const activeStepPos = activeCategories.findIndex(c => c.id === currentCategory.id);
+
+  // --- Selection Logic ---
   const handleSelect = (recipeId: string) => {
     if (isReadOnly) return;
 
@@ -377,36 +410,41 @@ export const OrderFlow = () => {
           SAVORY_CATEGORIES.forEach(catId => newState[catId] = null);
       }
 
+      // 3. Rules: if a selection triggers a 'blocks' rule, clear the blocked category's selection
+      if (!isDeselecting) {
+        rules
+          .filter(r => r.effect === 'blocks' && r.triggerCategoryId === currentCategory.id)
+          .forEach(r => { newState[r.targetCategoryId] = null; });
+        // Also clear hidden-by-requires categories that are no longer triggered
+        categories.forEach(cat => {
+          if (isCategoryHidden(cat.id, newState)) newState[cat.id] = null;
+        });
+      }
+
       return newState;
     });
   };
 
   const handleNext = () => {
-    // SPECIAL LOGIC FOR VEGETARIAN STEP (First Step)
-    if (isVegStep) {
-        if (isVegSelected) {
-            // User chose vegetarian -> Skip everything else and go to confirmation
-            setShowConfirmation(true);
-            return;
-        } 
-        // User did NOT choose vegetarian -> Just continue to next step (Soup/Starter/etc)
-        setCurrentStepIndex(prev => prev + 1);
-        return;
-    }
-
-    // Standard Logic
-    if (currentStepIndex < categories.length - 1) {
-      setCurrentStepIndex(prev => prev + 1);
-    } else {
+    // Vegetarian shortcut: if veg is selected, skip everything and confirm
+    if (isVegStep && isVegSelected) {
       setShowConfirmation(true);
+      return;
+    }
+    const nextIndex = getNextAvailableIndex(currentStepIndex, selections);
+    if (nextIndex >= categories.length) {
+      setShowConfirmation(true);
+    } else {
+      setCurrentStepIndex(nextIndex);
     }
   };
 
   const handleBack = () => {
-    if (currentStepIndex > 0) {
-      setCurrentStepIndex(prev => prev - 1);
-    } else {
+    const prevIndex = getPrevAvailableIndex(currentStepIndex, selections);
+    if (prevIndex < 0) {
       navigate('/student/dashboard');
+    } else {
+      setCurrentStepIndex(prevIndex);
     }
   };
 
@@ -447,7 +485,7 @@ export const OrderFlow = () => {
     navigate('/student/dashboard?tab=history');
   };
 
-  const progress = ((currentStepIndex + 1) / categories.length) * 100;
+  const progress = ((activeStepPos + 1) / Math.max(activeCategories.length, 1)) * 100;
   
   // Logic for Next Button state:
   // - Veg Step: Always enabled (Optional)
@@ -492,7 +530,7 @@ export const OrderFlow = () => {
                {isKidsMode && getCategoryIcon(currentCategory.id, isKidsMode ? 32 : 40)}
                {currentCategory.name}
              </h2>
-             {isKidsMode && <span className="text-sm md:text-lg font-medium opacity-90 mt-1 bg-black/10 px-3 py-1 rounded-full">Paso {currentStepIndex + 1} de {categories.length}</span>}
+             {isKidsMode && <span className="text-sm md:text-lg font-medium opacity-90 mt-1 bg-black/10 px-3 py-1 rounded-full">Paso {activeStepPos + 1} de {activeCategories.length}</span>}
           </div>
           <div className="w-8" />
         </div>
@@ -515,16 +553,36 @@ export const OrderFlow = () => {
            </div>
         )}
 
+        {/* Banner de regla activa */}
+        {(() => {
+          const blockingRule = rules.find(r => r.effect === 'blocks' && r.targetCategoryId === currentCategory.id && !!selections[r.triggerCategoryId]);
+          const requireRule  = rules.find(r => r.effect === 'requires' && r.targetCategoryId === currentCategory.id);
+          const triggerName  = (r: typeof blockingRule) => r ? (categories.find(c => c.id === r.triggerCategoryId)?.name ?? r.triggerCategoryId) : '';
+          if (blockingRule) return (
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 rounded-xl flex items-center gap-3 border border-red-100 dark:border-red-800">
+              <Lock size={18} className="flex-shrink-0" />
+              <p className="text-sm">Esta categoría está <strong>bloqueada</strong> porque elegiste <strong>{triggerName(blockingRule)}</strong>. El paso se omitirá automáticamente.</p>
+            </div>
+          );
+          if (requireRule && !selections[requireRule.triggerCategoryId]) return (
+            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 rounded-xl flex items-center gap-3 border border-blue-100 dark:border-blue-800">
+              <Lock size={18} className="flex-shrink-0" />
+              <p className="text-sm">Esta categoría solo estará disponible si elegiste de <strong>{triggerName(requireRule)}</strong>.</p>
+            </div>
+          );
+          return null;
+        })()}
+
         {/* Info Box for Vegetarian Step */}
         {isVegStep && (
-            <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 rounded-xl text-center shadow-sm border border-green-100 dark:border-green-800">
-                <p className="font-medium text-sm md:text-base">
-                    <strong>Opción Alternativa:</strong> Si eliges el menú vegetariano, este reemplazará la sopa, entrada y plato fuerte del menú tradicional.
-                </p>
-                <p className="text-xs mt-1 opacity-80">
-                    Si prefieres el menú tradicional (con proteína animal), simplemente continúa sin seleccionar nada aquí.
-                </p>
-            </div>
+          <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 rounded-xl text-center shadow-sm border border-green-100 dark:border-green-800">
+            <p className="font-medium text-sm md:text-base">
+              <strong>Opción Alternativa:</strong> Si eliges el menú vegetariano, este reemplazará la sopa, entrada y plato fuerte del menú tradicional.
+            </p>
+            <p className="text-xs mt-1 opacity-80">
+              Si prefieres el menú tradicional (con proteína animal), simplemente continúa sin seleccionar nada aquí.
+            </p>
+          </div>
         )}
 
         <div className={`grid ${isKidsMode ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6' : 'grid-cols-1 md:grid-cols-2 gap-3 md:gap-4'}`}>

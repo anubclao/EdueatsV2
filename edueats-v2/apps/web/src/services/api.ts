@@ -1,5 +1,5 @@
 import type {
-  User, Recipe, CategoryDef, RoleDef, DailyMenuConfig, Order,
+  User, Recipe, CategoryDef, CategoryRule, RoleDef, DailyMenuConfig, Order,
   RecurringPreference, SystemNotification, SurveyDefinition, SurveyResult,
   GlobalVariable, GeneratedReport, ChatbotResponse
 } from '../types';
@@ -85,6 +85,11 @@ export const db = {
   addCategory:      (c: CategoryDef)      => post<void>('/categories', c),
   updateCategory:   (c: CategoryDef)      => put<void>(`/categories/${c.id}`, c),
   deleteCategory:   (id: string)          => del<void>(`/categories/${id}`),
+
+  // Category Rules
+  getCategoryRules:    ()                                                              => get<CategoryRule[]>('/category-rules'),
+  addCategoryRule:     (r: Omit<CategoryRule, 'id'>)                                  => post<{ success: boolean; id: string }>('/category-rules', r),
+  deleteCategoryRule:  (id: string)                                                    => del<{ success: boolean }>(`/category-rules/${id}`),
 
   // Recipes
   getRecipes:   ()               => get<Recipe[]>('/recipes'),

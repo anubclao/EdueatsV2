@@ -28,25 +28,31 @@ export async function ensureImageFoldersForAllCategories() {
 
 categoriesRouter.get('/', async (_req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, name, `order` FROM categories ORDER BY `order`') as any[];
+    const [rows] = await pool.query('SELECT id, name, `order`, exclusive_group AS exclusiveGroup FROM categories ORDER BY `order`') as any[];
     res.json(rows);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 categoriesRouter.post('/', async (req, res) => {
-  const { id, name, order } = req.body;
+  const { id, name, order, exclusiveGroup } = req.body;
   try {
     if (!isValidCategoryId(id)) return res.status(400).json({ error: 'ID de categoría inválido.' });
-    await pool.execute('INSERT INTO categories (id, name, `order`) VALUES (?, ?, ?)', [id, name, order]);
+    await pool.execute(
+      'INSERT INTO categories (id, name, `order`, exclusive_group) VALUES (?, ?, ?, ?)',
+      [id, name, order, exclusiveGroup || null]
+    );
     await ensureImageFolderForCategoryId(id);
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 categoriesRouter.put('/:id', async (req, res) => {
-  const { name, order } = req.body;
+  const { name, order, exclusiveGroup } = req.body;
   try {
-    await pool.execute('UPDATE categories SET name=?, `order`=? WHERE id=?', [name, order, req.params.id]);
+    await pool.execute(
+      'UPDATE categories SET name=?, `order`=?, exclusive_group=? WHERE id=?',
+      [name, order, exclusiveGroup || null, req.params.id]
+    );
     await ensureImageFolderForCategoryId(req.params.id);
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }

@@ -12,6 +12,7 @@ const Recipes = lazy(() => import('./pages/admin/Recipes').then((module) => ({ d
 const MenuPlanner = lazy(() => import('./pages/admin/MenuPlanner').then((module) => ({ default: module.MenuPlanner })));
 const Users = lazy(() => import('./pages/admin/Users').then((module) => ({ default: module.Users })));
 const Categories = lazy(() => import('./pages/admin/Categories').then((module) => ({ default: module.Categories })));
+const CategoryConditions = lazy(() => import('./pages/admin/CategoryConditions').then((module) => ({ default: module.CategoryConditions })));
 const Roles = lazy(() => import('./pages/admin/Roles').then((module) => ({ default: module.Roles })));
 const OverviewReports = lazy(() => import('./pages/admin/Reports').then((module) => ({ default: module.Reports })));
 const KpiReports = lazy(() => import('./pages/admin/KpiReports').then((module) => ({ default: module.KpiReports })));
@@ -90,6 +91,7 @@ const AppRoutes = () => {
           </Route>
           <Route path="recipes" element={<Recipes />} />
           <Route path="categories" element={<Categories />} />
+          <Route path="category-conditions" element={<CategoryConditions />} />
           <Route path="menu" element={<MenuPlanner />} />
           <Route path="users" element={<Users />} />
           <Route path="roles" element={<Roles />} />

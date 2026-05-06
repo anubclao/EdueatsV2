@@ -7,7 +7,7 @@ export const surveysRouter = Router();
 surveysRouter.get('/definitions', async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT id, title, start_date as startDate, end_date as endDate, is_active as isActive, created_at as createdAt FROM survey_definitions ORDER BY start_date DESC'
+      "SELECT id, title, DATE_FORMAT(start_date, '%Y-%m-%d') as startDate, DATE_FORMAT(end_date, '%Y-%m-%d') as endDate, is_active as isActive, created_at as createdAt FROM survey_definitions ORDER BY start_date DESC"
     ) as any[];
     res.json(rows.map((r: any) => ({ ...r, isActive: Boolean(r.isActive) })));
   } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -61,7 +61,7 @@ surveysRouter.get('/results', async (req, res) => {
   const { surveyDefId, type } = req.query as Record<string, string>;
   try {
     let sql = `SELECT id, survey_definition_id as surveyDefinitionId, user_id as userId,
-      user_name as userName, user_role as userRole, user_phone as userPhone, date,
+      user_name as userName, user_role as userRole, user_phone as userPhone, DATE_FORMAT(date, '%Y-%m-%d') as date,
       quality_rating as qualityRating, quantity_rating as quantityRating,
       type, comment, admin_response as adminResponse, status
       FROM survey_results`;

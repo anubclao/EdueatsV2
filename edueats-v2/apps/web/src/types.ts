@@ -20,6 +20,15 @@ export interface CategoryDef {
   id: string;
   name: string;
   order: number; // To determine the step sequence in OrderFlow
+  exclusiveGroup?: string; // Optional: categories sharing the same group are mutually exclusive in the planner
+}
+
+// Rule that controls category availability in the student OrderFlow
+export interface CategoryRule {
+  id: string;
+  triggerCategoryId: string; // When student selects from this category...
+  effect: 'blocks' | 'requires'; // 'blocks': target locked when trigger selected; 'requires': target only shows if trigger selected
+  targetCategoryId: string;  // ...this category is affected
 }
 
 // Interface for Dynamic Roles

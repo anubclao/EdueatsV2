@@ -5,6 +5,20 @@ import { Save, AlertCircle, History, Calendar, Trash2, Search, Image as ImageIco
 
 export const MenuPlanner = () => {
   const todayStr = new Date().toISOString().split('T')[0];
+
+  const normalizeDateOnly = (value: string) => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+    const directMatch = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (directMatch) return directMatch[1];
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+    return raw;
+  };
+
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
@@ -20,9 +34,10 @@ export const MenuPlanner = () => {
 
   const loadMenuHistory = async () => {
     const allMenus = await db.getAllMenus();
-    setMenuHistory(allMenus);
+    const normalizedMenus = allMenus.map(m => ({ ...m, date: normalizeDateOnly(m.date) }));
+    setMenuHistory(normalizedMenus);
     const counts = await Promise.all(
-      allMenus.map(m => db.getOrderCountByDate(m.date).then(r => ({ date: m.date, count: r.count })))
+      normalizedMenus.map(m => db.getOrderCountByDate(m.date).then(r => ({ date: m.date, count: r.count })))
     );
     setOrderCountsByDate(Object.fromEntries(counts.map(c => [c.date, c.count])));
   };
@@ -59,9 +74,27 @@ export const MenuPlanner = () => {
       const exists = prev.find(i => i.recipeId === recipeId);
       if (exists) {
         return prev.filter(i => i.recipeId !== recipeId);
-      } else {
-        return [...prev, { recipeId, isMandatory: false }];
       }
+
+      // Exclusive group logic: deselect recipes from other categories in the same group
+      const clickedRecipe = recipes.find(r => r.id === recipeId);
+      const clickedCategory = clickedRecipe ? categories.find(c => c.id === clickedRecipe.category) : undefined;
+      const exclusiveGroup = clickedCategory?.exclusiveGroup;
+
+      if (exclusiveGroup) {
+        // IDs of categories sharing the same exclusive group (excluding clicked category)
+        const siblingCategoryIds = categories
+          .filter(c => c.exclusiveGroup === exclusiveGroup && c.id !== clickedCategory!.id)
+          .map(c => c.id);
+        // Recipe IDs that belong to sibling categories
+        const siblingRecipeIds = new Set(
+          recipes.filter(r => siblingCategoryIds.includes(r.category)).map(r => r.id)
+        );
+        const filtered = prev.filter(i => !siblingRecipeIds.has(i.recipeId));
+        return [...filtered, { recipeId, isMandatory: false }];
+      }
+
+      return [...prev, { recipeId, isMandatory: false }];
     });
   };
 
@@ -116,27 +149,30 @@ export const MenuPlanner = () => {
   };
 
   const deleteMenu = async (date: string) => {
-    if (confirm(`¿Estás seguro de eliminar el menú del ${date}? Esto podría afectar pedidos existentes.`)) {
-        await db.deleteMenu(date);
+    const dateOnly = normalizeDateOnly(date);
+    if (confirm(`¿Estás seguro de eliminar el menú del ${dateOnly}? Esto podría afectar pedidos existentes.`)) {
+        await db.deleteMenu(dateOnly);
         await loadMenuHistory();
-        if (selectedDate === date) {
+        if (selectedDate === dateOnly) {
             setMenuItems([]);
         }
     }
   };
 
   const filteredHistory = menuHistory.filter(m => 
-    m.date.includes(historyFilter)
+    normalizeDateOnly(m.date).includes(historyFilter)
   );
 
   const formatDate = (dateStr: string) => {
     const options: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    const date = new Date(dateStr + 'T00:00:00');
+    const normalized = normalizeDateOnly(dateStr);
+    const date = new Date(`${normalized}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return normalized || 'Fecha inválida';
     return date.toLocaleDateString('es-ES', options);
   };
 
   const isPastDate = selectedDate < todayStr;
-  const isMenuPublishedForSelectedDate = menuHistory.find(menu => menu.date === selectedDate)?.isPublished || false;
+  const isMenuPublishedForSelectedDate = menuHistory.find(menu => normalizeDateOnly(menu.date) === selectedDate)?.isPublished || false;
 
   return (
     <div className="space-y-12">
@@ -188,8 +224,13 @@ export const MenuPlanner = () => {
         <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 ${isPastDate || isMenuPublishedForSelectedDate ? 'opacity-70 pointer-events-none grayscale' : ''}`}>
             {categories.map(category => (
             <div key={category.id} className="space-y-3">
-                <h3 className="font-bold text-gray-700 dark:text-gray-300 capitalize border-b dark:border-gray-700 pb-2 mb-4">
+                <h3 className="font-bold text-gray-700 dark:text-gray-300 capitalize border-b dark:border-gray-700 pb-2 mb-4 flex items-center gap-2">
                 {category.name}
+                {category.exclusiveGroup && (
+                  <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full font-normal font-mono" title={`Grupo exclusivo: ${category.exclusiveGroup}`}>
+                    /{category.exclusiveGroup}
+                  </span>
+                )}
                 </h3>
                 {recipes.filter(r => r.category === category.id).map(recipe => {
                 const isSelected = menuItems.some(i => i.recipeId === recipe.id);

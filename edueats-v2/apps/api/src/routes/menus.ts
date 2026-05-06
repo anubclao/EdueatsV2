@@ -5,7 +5,7 @@ export const menusRouter = Router();
 
 async function fetchMenus(date?: string) {
   let sql = `
-    SELECT dmc.date, dmc.is_published,
+    SELECT DATE_FORMAT(dmc.date, '%Y-%m-%d') as date, dmc.is_published,
            dmi.recipe_id, dmi.is_mandatory
     FROM daily_menu_configs dmc
     LEFT JOIN daily_menu_items dmi ON dmc.date = dmi.menu_date`;

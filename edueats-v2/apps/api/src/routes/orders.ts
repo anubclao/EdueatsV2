@@ -18,7 +18,7 @@ async function fetchOrders(studentId?: string) {
   const [rows] = await pool.query(`
     SELECT o.id, o.student_id as studentId, o.student_name as studentName,
            o.student_grade as studentGrade, o.student_section as studentSection,
-           o.student_allergies as studentAllergies, o.date, o.status, o.timestamp,
+        o.student_allergies as studentAllergies, DATE_FORMAT(o.date, '%Y-%m-%d') as date, o.status, o.timestamp,
            oi.category, oi.recipe_id as recipeId
     FROM orders o
     LEFT JOIN order_items oi ON o.id = oi.order_id

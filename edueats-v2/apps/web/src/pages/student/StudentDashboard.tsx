@@ -56,6 +56,33 @@ export const StudentDashboard = () => {
     return local.toISOString().split('T')[0];
   };
 
+  const normalizeDateOnly = (value: string) => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+    const direct = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (direct) return direct[1];
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+    return raw;
+  };
+
+  const formatDateLong = (value: string) => {
+    const dateOnly = normalizeDateOnly(value);
+    const parsed = new Date(`${dateOnly}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return dateOnly || 'Fecha inválida';
+    return parsed.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  };
+
+  const formatDateShort = (value: string) => {
+    const dateOnly = normalizeDateOnly(value);
+    const parsed = new Date(`${dateOnly}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return dateOnly || 'Fecha inválida';
+    return parsed.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
+  };
+
   const todayStr = getLocalDateStr();
 
   useEffect(() => {
@@ -75,9 +102,13 @@ export const StudentDashboard = () => {
       ]);
 
       const userOrders = allOrders.filter(o => o.studentId === user?.id);
-      setOrders(userOrders);
       setRecipes(allRecipes);
-      setAllMenus(menusData);
+      const normalizedMenus = menusData.map(m => ({ ...m, date: normalizeDateOnly(m.date) }));
+      const normalizedOrders = userOrders.map(o => ({ ...o, date: normalizeDateOnly(o.date) }));
+      const normalizedNotes = allNotes.map(n => ({ ...n, date: normalizeDateOnly(n.date) }));
+
+      setOrders(normalizedOrders);
+      setAllMenus(normalizedMenus);
       setCategories(catsData);
 
       if (user) {
@@ -88,16 +119,17 @@ export const StudentDashboard = () => {
       const schoolVar = globalVars.find(v => v.id === 'schoolName');
       if (schoolVar) setSchoolName(schoolVar.value);
 
-      const validDates = menusData
+      const validDates = normalizedMenus
         .filter(menu => menu.isPublished === true && menu.date >= todayStr)
         .sort((a, b) => a.date.localeCompare(b.date))
-        .map(m => m.date);
+        .map(m => normalizeDateOnly(m.date))
+        .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
       setAvailableDates(validDates);
 
       const storedDismissed = JSON.parse(localStorage.getItem('edueats_dismissed_notes') || '[]');
       setDismissedNoteIds(storedDismissed);
 
-      const relevantNotes = allNotes.filter(n => {
+      const relevantNotes = normalizedNotes.filter(n => {
         const isFutureOrToday = n.date >= todayStr;
         const isRoleMatch = n.targetRole === 'all' || n.targetRole === user?.role;
         const isNotDismissed = !storedDismissed.includes(n.id);
@@ -111,10 +143,11 @@ export const StudentDashboard = () => {
       setTomorrowDate(tStr);
 
       const isDismissed = localStorage.getItem(`edueats_dismiss_reminder_${tStr}`);
-      const menuExistsForTomorrow = await db.getDailyMenu(tStr);
+      const menuExistsForTomorrowRaw = await db.getDailyMenu(tStr);
+      const menuExistsForTomorrow = menuExistsForTomorrowRaw ? { ...menuExistsForTomorrowRaw, date: normalizeDateOnly(menuExistsForTomorrowRaw.date) } : null;
 
       if (!isDismissed && menuExistsForTomorrow?.isPublished) {
-        const hasOrderForTomorrow = userOrders.some(o => o.date === tStr && o.status === 'confirmed');
+        const hasOrderForTomorrow = normalizedOrders.some(o => o.date === tStr && o.status === 'confirmed');
         if (!hasOrderForTomorrow) setShowReminder(true);
       }
     };
@@ -197,7 +230,10 @@ export const StudentDashboard = () => {
 
         return {
             date: order.date,
-            day: new Date(order.date + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }),
+            day: (() => {
+              const d = new Date(`${normalizeDateOnly(order.date)}T00:00:00`);
+              return Number.isNaN(d.getTime()) ? normalizeDateOnly(order.date) : d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' });
+            })(),
             calories: totalCals,
             itemsCount,
             itemsDetail
@@ -219,7 +255,7 @@ export const StudentDashboard = () => {
     if (!user) return;
 
     const filteredOrders = orders.filter(order => {
-      const orderDate = new Date(order.date + 'T00:00:00');
+      const orderDate = new Date(`${normalizeDateOnly(order.date)}T00:00:00`);
       const start = new Date(reportStartDate + 'T00:00:00');
       const end = new Date(reportEndDate + 'T00:00:00');
       return orderDate >= start && orderDate <= end;
@@ -492,12 +528,15 @@ export const StudentDashboard = () => {
             {availableDates
               .filter(date => getOrderStatus(date) !== 'confirmed')
               .map((date) => {
+              const safeDate = normalizeDateOnly(date);
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(safeDate)) return null;
+
               const status = getOrderStatus(date);
-              const dateObj = new Date(date + 'T00:00:00'); 
-              const dayNameRaw = dateObj.toLocaleDateString('es-ES', { weekday: 'long' });
+              const dateObj = new Date(`${safeDate}T00:00:00`);
+              const dayNameRaw = Number.isNaN(dateObj.getTime()) ? normalizeDateOnly(date) : dateObj.toLocaleDateString('es-ES', { weekday: 'long' });
               const dayName = dayNameRaw.charAt(0).toUpperCase() + dayNameRaw.slice(1);
-              const displayDate = dateObj.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
-              const isToday = date === todayStr;
+              const displayDate = formatDateShort(safeDate);
+              const isToday = safeDate === todayStr;
 
               let cardClasses = status === 'confirmed' ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800" : "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-primary/50 hover:shadow-md cursor-pointer";
               const StatusIcon = status === 'confirmed' ? CheckCircle : Circle;
@@ -508,7 +547,7 @@ export const StudentDashboard = () => {
               }
 
               return (
-                <Link to={`/student/order/${date}`} key={date} className={`group relative p-6 rounded-xl border-2 transition-all ${cardClasses}`}>
+                <Link to={`/student/order/${safeDate}`} key={safeDate} className={`group relative p-6 rounded-xl border-2 transition-all ${cardClasses}`}>
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -541,8 +580,7 @@ export const StudentDashboard = () => {
           {historyOrders.length > 0 ? (
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
               {historyOrders.map((order) => {
-                const dateObj = new Date(order.date + 'T00:00:00');
-                const fullDate = dateObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                const fullDate = formatDateLong(order.date);
                 const isFuture = order.date >= todayStr;
                 return (
                   <div key={order.id} className={`p-6 transition-colors ${isFuture ? 'bg-blue-50/30 dark:bg-blue-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
@@ -587,8 +625,7 @@ export const StudentDashboard = () => {
           {unconfirmedOrdersReport.length > 0 ? (
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
               {unconfirmedOrdersReport.map((menu) => {
-                const dateObj = new Date(menu.date + 'T00:00:00');
-                const fullDate = dateObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                const fullDate = formatDateLong(menu.date);
                 return (
                   <div key={menu.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                     <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4">

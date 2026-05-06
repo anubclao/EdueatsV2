@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
 import { categoriesRouter } from './routes/categories.js';
 import { chatbotRouter } from './routes/chatbot.js';
+import { categoryRulesRouter } from './routes/category-rules.js';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { menusRouter } from './routes/menus.js';
@@ -112,6 +113,7 @@ export function createApp() {
   app.use('/api/users', usersRouter);
   app.use('/api/roles', rolesRouter);
   app.use('/api/categories', categoriesRouter);
+  app.use('/api/category-rules', categoryRulesRouter);
   app.use('/api/recipes', recipesRouter);
   app.use('/api/menus', menusRouter);
   app.use('/api/orders', ordersRouter);

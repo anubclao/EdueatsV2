@@ -6,7 +6,7 @@ export const notificationsRouter = Router();
 notificationsRouter.get('/', async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT id, date, message, original_message as originalMessage, type, target_role as targetRole FROM system_notifications ORDER BY date DESC'
+      "SELECT id, DATE_FORMAT(date, '%Y-%m-%d') as date, message, original_message as originalMessage, type, target_role as targetRole FROM system_notifications ORDER BY date DESC"
     ) as any[];
     res.json(rows);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
