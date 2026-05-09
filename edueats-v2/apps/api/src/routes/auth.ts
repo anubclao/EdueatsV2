@@ -17,7 +17,13 @@ const OTP_TTL_MINUTES = Math.min(
 const OTP_TTL_MS = OTP_TTL_MINUTES * 60 * 1000;
 const OTP_RATE_LIMIT_MAX = parsePositiveInt(process.env.OTP_RATE_LIMIT_MAX, 3);
 const OTP_RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.OTP_RATE_LIMIT_WINDOW_MS, 60 * 60 * 1000);
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+const getSessionExpiryAt = (nowMs: number) => {
+  const endOfDay = new Date(nowMs);
+  // Cierra todas las sesiones activas a las 11:59:59 p. m. del dia actual.
+  endOfDay.setHours(23, 59, 59, 999);
+  return endOfDay.getTime();
+};
 
 type OtpRateBucket = {
   count: number;
@@ -269,7 +275,8 @@ authRouter.post('/verify-otp', async (req, res) => {
     const sessionToken = randomBytes(32).toString('hex');
     const tokenHash = hashToken(sessionToken);
     const sessionId = randomBytes(20).toString('hex');
-    const expiresAt = now + SESSION_TTL_MS;
+    const expiresAt = getSessionExpiryAt(now);
+    const sessionTtlMs = Math.max(1, expiresAt - now);
 
     await pool.execute('UPDATE auth_otp_challenges SET consumed_at=? WHERE id=?', [now, challengeId]);
     await pool.execute(
@@ -278,7 +285,7 @@ authRouter.post('/verify-otp', async (req, res) => {
       [sessionId, challenge.user_id, tokenHash, expiresAt, now, req.ip ?? null, (req.headers['user-agent'] ?? '').slice(0, 255)]
     );
 
-    setSessionCookie(res, sessionToken, SESSION_TTL_MS);
+    setSessionCookie(res, sessionToken, sessionTtlMs);
 
     return res.json({ success: true, user: toUserResponse(users[0]) });
   } catch (error: any) {

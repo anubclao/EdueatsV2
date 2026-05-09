@@ -38,11 +38,17 @@ export const requireAuth = async (req, res, next) => {
             return res.status(401).json({ error: 'No autenticado' });
         const tokenHash = hashToken(token);
         const now = Date.now();
+        const startOfToday = new Date(now);
+        startOfToday.setHours(0, 0, 0, 0);
+        const startOfTodayMs = startOfToday.getTime();
         const [rows] = await pool.execute(`SELECT u.id, u.name, u.email, u.role, u.email_verified as emailVerified
        FROM auth_sessions s
        INNER JOIN users u ON u.id = s.user_id
-       WHERE s.token_hash=? AND s.revoked_at IS NULL AND s.expires_at > ?
-       LIMIT 1`, [tokenHash, now]);
+       WHERE s.token_hash=?
+         AND s.revoked_at IS NULL
+         AND s.expires_at > ?
+         AND s.created_at >= ?
+       LIMIT 1`, [tokenHash, now, startOfTodayMs]);
         if (!rows.length)
             return res.status(401).json({ error: 'Sesion invalida' });
         req.authUser = {
