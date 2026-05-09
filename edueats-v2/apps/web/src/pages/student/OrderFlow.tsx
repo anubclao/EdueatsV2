@@ -416,6 +416,13 @@ export const OrderFlow = () => {
   const activeCategories = categories.filter(c => isCatAvailable(c.id, selections));
   const activeStepPos = activeCategories.findIndex(c => c.id === currentCategory.id);
 
+  // Dedicated visual process for protein categories (e.g., Proteina 1 / Proteina 2)
+  const proteinSteps = activeCategories.filter(c => {
+    const raw = `${c.name} ${c.id}`.toLowerCase();
+    return raw.includes('proteina') || raw.includes('proteína') || raw.includes('protein');
+  });
+  const activeProteinPos = proteinSteps.findIndex(c => c.id === currentCategory.id);
+
   // --- Selection Logic ---
   const handleSelect = (recipeId: string) => {
     if (isReadOnly) return;
@@ -573,6 +580,41 @@ export const OrderFlow = () => {
             style={{ width: `${progress}%` }} 
           />
         </div>
+
+        <div className="mt-3 flex items-center justify-between text-xs md:text-sm text-white/80">
+          <span>Paso {activeStepPos + 1} de {activeCategories.length}</span>
+          <span>{Math.round(progress)}% completado</span>
+        </div>
+
+        {proteinSteps.length >= 2 && (
+          <div className="mt-3 rounded-xl border border-white/15 bg-black/15 p-2.5">
+            <p className="text-[11px] md:text-xs uppercase tracking-wider text-white/70 mb-2">Proceso de proteinas</p>
+            <div className="grid grid-cols-2 gap-2">
+              {proteinSteps.map((step, idx) => {
+                const isCurrentProtein = step.id === currentCategory.id;
+                const isCompletedProtein = !!selections[step.id] || idx < activeProteinPos;
+
+                return (
+                  <div
+                    key={step.id}
+                    className={`rounded-lg px-3 py-2 border text-[11px] md:text-xs transition-colors ${
+                      isCurrentProtein
+                        ? 'border-emerald-300 bg-emerald-400/20 text-white'
+                        : isCompletedProtein
+                          ? 'border-green-300/60 bg-green-400/15 text-white/90'
+                          : 'border-white/20 bg-black/20 text-white/70'
+                    }`}
+                  >
+                    <div className="font-semibold leading-tight">{step.name}</div>
+                    <div className="mt-0.5 opacity-80">
+                      {isCurrentProtein ? 'En curso' : isCompletedProtein ? 'Listo' : 'Pendiente'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Content Area */}
