@@ -90,6 +90,8 @@ export const StudentDashboard = () => {
       const params = new URLSearchParams(location.search);
       if (params.get('tab') === 'history') {
         setActiveTab('history');
+      } else if (params.get('tab') === 'unconfirmed-orders') {
+        setActiveTab('unconfirmed-orders');
       }
 
       const [allOrders, allRecipes, menusData, catsData, globalVars, allNotes] = await Promise.all([

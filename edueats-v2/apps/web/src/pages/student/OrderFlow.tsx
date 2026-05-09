@@ -184,6 +184,9 @@ export const OrderFlow = () => {
   // Preference Auto-fill notification
   const [autoFilled, setAutoFilled] = useState(false);
 
+  // Loading state to distinguish "loading" from "menu not found"
+  const [isLoaded, setIsLoaded] = useState(false);
+
   const isKidsMode = user?.grade && user.grade <= 5;
   const getLocalDateStr = () => {
     const d = new Date();
@@ -215,6 +218,7 @@ export const OrderFlow = () => {
       setRecipes(allRecipes);
       setCategories(allCats);
       setExistingOrder(existing);
+      setIsLoaded(true);
 
       if (existing) {
         const loadedSelections: Record<string, string | null> = {};
@@ -262,7 +266,8 @@ export const OrderFlow = () => {
     loadData();
   }, [date, user]);
 
-  if (!menuConfig || categories.length === 0) {
+  // Loading spinner (before data arrives)
+  if (!isLoaded) {
     return (
       <div className="text-center py-12 dark:text-white">
         <h2 className="text-xl font-semibold">Cargando menú...</h2>
@@ -270,24 +275,30 @@ export const OrderFlow = () => {
     );
   }
 
-  // --- Logic for "Date Closed" without order ---
-  if (!existingOrder && date && date <= todayStr) {
-      return (
-          <div className="min-h-screen flex items-center justify-center p-4">
-              <div className="text-center max-w-md bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl">
-                  <div className="bg-gray-100 dark:bg-gray-700 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <Lock size={40} className="text-gray-400" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Pedidos Cerrados</h2>
-                  <p className="text-gray-500 dark:text-gray-400 mb-6">
-                      Ya no es posible realizar pedidos para la fecha <strong>{date}</strong>. Recuerda realizar tu selección con al menos un día de anticipación.
-                  </p>
-                  <button onClick={() => navigate('/student/dashboard')} className="bg-primary text-white px-6 py-3 rounded-xl font-bold w-full">
-                      Volver al Calendario
-                  </button>
-              </div>
+  // --- Menú eliminado por el administrador ---
+  if (!menuConfig) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center max-w-md bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl">
+          <div className="bg-amber-100 dark:bg-amber-900/30 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertTriangle size={40} className="text-amber-500" />
           </div>
-      )
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Menú no disponible</h2>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">
+            El menú para la fecha <strong>{date}</strong> fue eliminado o no está disponible. Contacta al administrador si crees que es un error.
+          </p>
+          <button onClick={() => navigate('/student/dashboard')} className="bg-primary text-white px-6 py-3 rounded-xl font-bold w-full">
+            Volver al Inicio
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Logic for "Date Closed" without order → redirect to unconfirmed tab ---
+  if (!existingOrder && date && date <= todayStr) {
+      navigate('/student/dashboard?tab=unconfirmed-orders', { replace: true });
+      return null;
   }
 
   // --- Logic for Confirmed Order Summary (Read Only View) ---
@@ -365,8 +376,20 @@ export const OrderFlow = () => {
   const isVegSelected = selections[currentCategory.id];
 
   // --- Category Rules Helpers ---
+
+  // Returns true when A blocks B AND B blocks A (mutually exclusive choice — show both, pick one)
+  const isMutualBlock = (triggerCatId: string, targetCatId: string): boolean =>
+    rules.some(r => r.effect === 'blocks' && r.triggerCategoryId === targetCatId && r.targetCategoryId === triggerCatId);
+
+  // A category is "hard-blocked" (step skipped) only when the block is one-directional.
+  // For mutual blocks, we keep the step visible so the user can switch their choice.
   const isCategoryBlocked = (catId: string, sels: Record<string, string | null>): boolean =>
-    rules.some(r => r.effect === 'blocks' && r.targetCategoryId === catId && !!sels[r.triggerCategoryId]);
+    rules.some(r =>
+      r.effect === 'blocks' &&
+      r.targetCategoryId === catId &&
+      !!sels[r.triggerCategoryId] &&
+      !isMutualBlock(r.triggerCategoryId, catId)
+    );
 
   const isCategoryHidden = (catId: string, sels: Record<string, string | null>): boolean => {
     const reqs = rules.filter(r => r.effect === 'requires' && r.targetCategoryId === catId);
@@ -491,9 +514,18 @@ export const OrderFlow = () => {
   // - Veg Step: Always enabled (Optional)
   // - Others: Must select unless empty options
   
+  // For a mutual-block step: if the sibling category already has a selection, this step is optional
+  const mutualBlockSiblingSelected = rules.some(r =>
+    r.effect === 'blocks' &&
+    r.targetCategoryId === currentCategory.id &&
+    !!selections[r.triggerCategoryId] &&
+    isMutualBlock(r.triggerCategoryId, currentCategory.id)
+  );
+
   let isNextDisabled = !selections[currentCategory.id]; 
   
   if (isVegStep) isNextDisabled = false; // Always allow moving forward on optional step
+  if (mutualBlockSiblingSelected) isNextDisabled = false; // Sibling already chosen — this step is optional
   if (availableRecipes.length === 0) isNextDisabled = false;
 
   // Button Label Logic
@@ -558,6 +590,19 @@ export const OrderFlow = () => {
           const blockingRule = rules.find(r => r.effect === 'blocks' && r.targetCategoryId === currentCategory.id && !!selections[r.triggerCategoryId]);
           const requireRule  = rules.find(r => r.effect === 'requires' && r.targetCategoryId === currentCategory.id);
           const triggerName  = (r: typeof blockingRule) => r ? (categories.find(c => c.id === r.triggerCategoryId)?.name ?? r.triggerCategoryId) : '';
+
+          if (blockingRule && isMutualBlock(blockingRule.triggerCategoryId, currentCategory.id)) {
+            // Mutual block: sibling already selected — inform the user they can switch or continue
+            return (
+              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 rounded-xl flex items-center gap-3 border border-blue-100 dark:border-blue-800">
+                <CheckCircle2 size={18} className="flex-shrink-0 text-blue-500" />
+                <p className="text-sm">
+                  Ya elegiste de <strong>{triggerName(blockingRule)}</strong>. Puedes continuar o <strong>cambiar tu elección aquí</strong> — solo se confirmará una proteína.
+                </p>
+              </div>
+            );
+          }
+
           if (blockingRule) return (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 rounded-xl flex items-center gap-3 border border-red-100 dark:border-red-800">
               <Lock size={18} className="flex-shrink-0" />

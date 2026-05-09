@@ -5,6 +5,7 @@ import { Save, AlertCircle, History, Calendar, Trash2, Search, Image as ImageIco
 
 export const MenuPlanner = () => {
   const todayStr = new Date().toISOString().split('T')[0];
+  const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0]; })();
 
   const normalizeDateOnly = (value: string) => {
     const raw = String(value ?? '').trim();
@@ -19,7 +20,7 @@ export const MenuPlanner = () => {
     return raw;
   };
 
-  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const [selectedDate, setSelectedDate] = useState<string>(tomorrowStr);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [menuItems, setMenuItems] = useState<{recipeId: string, isMandatory: boolean}[]>([]);
@@ -68,7 +69,7 @@ export const MenuPlanner = () => {
   };
 
   const toggleRecipe = (recipeId: string) => {
-    if (selectedDate < todayStr) return; // Prevent editing past via toggle
+    if (selectedDate <= todayStr) return; // Prevent editing past or today via toggle
 
     setMenuItems(prev => {
       const exists = prev.find(i => i.recipeId === recipeId);
@@ -100,7 +101,7 @@ export const MenuPlanner = () => {
 
   const toggleMandatory = (recipeId: string, e: MouseEvent) => {
     e.stopPropagation(); 
-    if (selectedDate < todayStr) return; // Prevent editing past
+    if (selectedDate <= todayStr) return; // Prevent editing past or today
 
     setMenuItems(prev => prev.map(item => 
       item.recipeId === recipeId ? { ...item, isMandatory: !item.isMandatory } : item
@@ -108,8 +109,8 @@ export const MenuPlanner = () => {
   };
 
   const saveMenu = async () => {
-    if (selectedDate < todayStr) {
-        alert("No es posible programar o modificar menús en fechas pasadas.");
+    if (selectedDate <= todayStr) {
+        alert("No es posible programar o modificar menús para el día actual ni fechas pasadas.");
         return;
     }
 
@@ -171,7 +172,7 @@ export const MenuPlanner = () => {
     return date.toLocaleDateString('es-ES', options);
   };
 
-  const isPastDate = selectedDate < todayStr;
+  const isPastDate = selectedDate <= todayStr;
   const isMenuPublishedForSelectedDate = menuHistory.find(menu => normalizeDateOnly(menu.date) === selectedDate)?.isPublished || false;
 
   return (
@@ -187,7 +188,7 @@ export const MenuPlanner = () => {
             <div className="flex gap-4">
             <input 
                 type="date" 
-                min={todayStr}
+                min={tomorrowStr}
                 className={`border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary/50 outline-none ${isPastDate ? 'text-red-500 border-red-300' : ''}`}
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
@@ -216,7 +217,7 @@ export const MenuPlanner = () => {
         {isPastDate && (
             <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-3 rounded-lg text-sm flex items-center gap-2 border border-amber-200 dark:border-amber-800">
                 <Lock size={16} />
-                <span>Estás visualizando un menú pasado. No se permiten ediciones para mantener la integridad del historial.</span>
+                <span>No se permiten ediciones para el día actual ni fechas pasadas. Solo puedes planificar menús a partir de mañana.</span>
             </div>
         )}
 
@@ -317,30 +318,71 @@ export const MenuPlanner = () => {
       </div>
 
       {/* Publish Confirmation Modal */}
-      {showPublishConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-6 space-y-4 shadow-lg">
-            <h3 className="text-xl font-bold dark:text-white">Confirmar Publicación</h3>
-            <p className="text-gray-700 dark:text-gray-300">¿Deseas publicar este menú para el día {formatDate(selectedDate)} o prefieres seguir modificándolo?</p>
-            <div className="flex justify-end gap-2 mt-6">
-              <button 
-                type="button" 
-                onClick={() => setShowPublishConfirm(false)}
-                className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-              >
-                Modificar
-              </button>
-              <button 
-                type="button" 
-                onClick={publishMenuConfirmed}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-emerald-600"
-              >
-                Confirmar Publicación
-              </button>
+      {showPublishConfirm && (() => {
+        // Group selected recipes by category for the summary
+        const selectedByCategory = categories
+          .map(cat => ({
+            category: cat,
+            recipes: menuItems
+              .map(item => recipes.find(r => r.id === item.recipeId && r.category === cat.id))
+              .filter((r): r is Recipe => !!r)
+              .map(r => ({ ...r, isMandatory: menuItems.find(i => i.recipeId === r.id)?.isMandatory ?? false })),
+          }))
+          .filter(g => g.recipes.length > 0);
+
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-xl max-w-lg w-full p-6 space-y-4 shadow-lg">
+              <h3 className="text-xl font-bold dark:text-white">Confirmar Publicación</h3>
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                Menú para el <span className="font-semibold text-gray-800 dark:text-white capitalize">{formatDate(selectedDate)}</span>
+              </p>
+
+              {/* Summary by category */}
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                {selectedByCategory.map(({ category, recipes: catRecipes }) => (
+                  <div key={category.id} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1.5">
+                      <span className="inline-block w-2 h-2 rounded-full bg-primary" />
+                      {category.name}
+                    </p>
+                    <ul className="space-y-1">
+                      {catRecipes.map(recipe => (
+                        <li key={recipe.id} className="flex items-center justify-between text-sm">
+                          <span className="text-gray-800 dark:text-gray-200">{recipe.name}</span>
+                          {recipe.isMandatory && (
+                            <span className="text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-2 py-0.5 rounded-full font-medium">
+                              Requerido
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-gray-700 dark:text-gray-300 text-sm pt-1">¿Deseas publicar este menú o prefieres seguir modificándolo?</p>
+              <div className="flex justify-end gap-2 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setShowPublishConfirm(false)}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                >
+                  Modificar
+                </button>
+                <button 
+                  type="button" 
+                  onClick={publishMenuConfirmed}
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-emerald-600"
+                >
+                  Confirmar Publicación
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <hr className="border-gray-200 dark:border-gray-700" />
 
