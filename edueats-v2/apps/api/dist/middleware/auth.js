@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import pool from '../db/pool.js';
+import { getBogotaStartOfDayMs } from '../services/timezone.js';
 const SESSION_COOKIE = 'edueats_session';
 const parseCookie = (cookieHeader, key) => {
     if (!cookieHeader)
@@ -38,9 +39,7 @@ export const requireAuth = async (req, res, next) => {
             return res.status(401).json({ error: 'No autenticado' });
         const tokenHash = hashToken(token);
         const now = Date.now();
-        const startOfToday = new Date(now);
-        startOfToday.setHours(0, 0, 0, 0);
-        const startOfTodayMs = startOfToday.getTime();
+        const startOfTodayMs = getBogotaStartOfDayMs(now);
         const [rows] = await pool.execute(`SELECT u.id, u.name, u.email, u.role, u.email_verified as emailVerified
        FROM auth_sessions s
        INNER JOIN users u ON u.id = s.user_id

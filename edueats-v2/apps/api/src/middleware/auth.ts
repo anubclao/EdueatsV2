@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
 import pool from '../db/pool.js';
+import { getBogotaStartOfDayMs } from '../services/timezone.js';
 
 const SESSION_COOKIE = 'edueats_session';
 
@@ -60,9 +61,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 
     const tokenHash = hashToken(token);
     const now = Date.now();
-    const startOfToday = new Date(now);
-    startOfToday.setHours(0, 0, 0, 0);
-    const startOfTodayMs = startOfToday.getTime();
+    const startOfTodayMs = getBogotaStartOfDayMs(now);
 
     const [rows] = await pool.execute(
       `SELECT u.id, u.name, u.email, u.role, u.email_verified as emailVerified

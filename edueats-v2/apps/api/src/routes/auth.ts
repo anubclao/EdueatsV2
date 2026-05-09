@@ -4,6 +4,7 @@ import { z } from 'zod';
 import pool from '../db/pool.js';
 import { clearSessionCookie, hashToken, requireAuth, revokeSessionByToken, setSessionCookie } from '../middleware/auth.js';
 import { sendOtpEmail } from '../services/email.js';
+import { getBogotaEndOfDayMs } from '../services/timezone.js';
 
 const parsePositiveInt = (value: string | undefined, fallback: number) => {
   const n = Number(value);
@@ -17,13 +18,6 @@ const OTP_TTL_MINUTES = Math.min(
 const OTP_TTL_MS = OTP_TTL_MINUTES * 60 * 1000;
 const OTP_RATE_LIMIT_MAX = parsePositiveInt(process.env.OTP_RATE_LIMIT_MAX, 3);
 const OTP_RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.OTP_RATE_LIMIT_WINDOW_MS, 60 * 60 * 1000);
-
-const getSessionExpiryAt = (nowMs: number) => {
-  const endOfDay = new Date(nowMs);
-  // Cierra todas las sesiones activas a las 11:59:59 p. m. del dia actual.
-  endOfDay.setHours(23, 59, 59, 999);
-  return endOfDay.getTime();
-};
 
 type OtpRateBucket = {
   count: number;
@@ -275,7 +269,7 @@ authRouter.post('/verify-otp', async (req, res) => {
     const sessionToken = randomBytes(32).toString('hex');
     const tokenHash = hashToken(sessionToken);
     const sessionId = randomBytes(20).toString('hex');
-    const expiresAt = getSessionExpiryAt(now);
+    const expiresAt = getBogotaEndOfDayMs(now);
     const sessionTtlMs = Math.max(1, expiresAt - now);
 
     await pool.execute('UPDATE auth_otp_challenges SET consumed_at=? WHERE id=?', [now, challengeId]);
