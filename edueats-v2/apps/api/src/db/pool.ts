@@ -13,7 +13,7 @@ const asPositiveInt = (value: string | undefined, fallback: number) => {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 };
 
-const dbHost = asEnvString(process.env.DB_HOST) || 'localhost';
+const dbHost = asEnvString(process.env.DB_HOST) || '127.0.0.1';
 const dbUser = asEnvString(process.env.DB_USER) || 'root';
 const dbName = asEnvString(process.env.DB_NAME) || 'edueat';
 const dbPass = asEnvString(process.env.DB_PASS) || asEnvString(process.env.DB_PASSWORD);
