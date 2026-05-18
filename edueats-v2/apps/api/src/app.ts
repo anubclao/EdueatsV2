@@ -5,7 +5,6 @@ import helmet from 'helmet';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
-import { getRedisClient } from './services/redis.js';
 import { RedisRateLimitStore } from './middleware/redis-rate-limit-store.js';
 import { getSessionMiddleware } from './middleware/sessions.js';
 import { categoriesRouter } from './routes/categories.js';
@@ -73,7 +72,6 @@ export function createApp() {
     legacyHeaders: false,
     message: { error: 'Demasiadas solicitudes, intenta en un momento.' },
     store: new RedisRateLimitStore(),
-    keyGenerator: (req) => req.ip || 'unknown',
   });
   app.use('/api/', globalLimiter);
 
@@ -86,7 +84,6 @@ export function createApp() {
     legacyHeaders: false,
     message: { error: 'Demasiados intentos. Intenta en 15 minutos.' },
     store: new RedisRateLimitStore(),
-    keyGenerator: (req) => req.ip || 'unknown',
   });
   app.use('/api/users/register', authLimiter);
   app.use('/api/users/verify', authLimiter);
