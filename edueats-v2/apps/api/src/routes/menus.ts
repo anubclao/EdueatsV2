@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { getCachedMenus, invalidateMenuCache } from '../services/cache-helpers.js';
 
 export const menusRouter = Router();
 
@@ -23,14 +24,16 @@ async function fetchMenus(date?: string) {
 }
 
 menusRouter.get('/', async (_req, res) => {
-  try { res.json(await fetchMenus()); }
-  catch (e: any) { res.status(500).json({ error: e.message }); }
+  try {
+    const menus = await getCachedMenus('menus:all', () => fetchMenus());
+    res.json(menus);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 menusRouter.get('/:date', async (req, res) => {
   try {
-    const menus = await fetchMenus(req.params.date);
-    res.json(menus[0] ?? null);
+    const menu = await getCachedMenus(`menu:${req.params.date}`, () => fetchMenus(req.params.date));
+    res.json(menu[0] ?? null);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
@@ -51,6 +54,8 @@ menusRouter.post('/', async (req, res) => {
       );
     }
     await conn.commit();
+    // Invalidate cache after update
+    await invalidateMenuCache(date);
     res.json({ success: true });
   } catch (e: any) {
     await conn.rollback();
@@ -61,6 +66,8 @@ menusRouter.post('/', async (req, res) => {
 menusRouter.delete('/:date', async (req, res) => {
   try {
     await pool.execute('DELETE FROM daily_menu_configs WHERE date=?', [req.params.date]);
+    // Invalidate cache after delete
+    await invalidateMenuCache(req.params.date);
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });

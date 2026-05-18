@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../db/pool.js';
+import { getCachedCategories, invalidateCategoriesCache } from '../services/cache-helpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const imagesRoot = path.join(__dirname, '..', '..', '..', '..', '..', 'images');
@@ -28,7 +29,10 @@ export async function ensureImageFoldersForAllCategories() {
 
 categoriesRouter.get('/', async (_req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, name, `order`, exclusive_group AS exclusiveGroup FROM categories ORDER BY `order`') as any[];
+    const rows = await getCachedCategories(() =>
+      pool.query('SELECT id, name, `order`, exclusive_group AS exclusiveGroup FROM categories ORDER BY `order`')
+        .then(result => result[0])
+    );
     res.json(rows);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -42,6 +46,7 @@ categoriesRouter.post('/', async (req, res) => {
       [id, name, order, exclusiveGroup || null]
     );
     await ensureImageFolderForCategoryId(id);
+    await invalidateCategoriesCache();
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -54,6 +59,7 @@ categoriesRouter.put('/:id', async (req, res) => {
       [name, order, exclusiveGroup || null, req.params.id]
     );
     await ensureImageFolderForCategoryId(req.params.id);
+    await invalidateCategoriesCache();
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });

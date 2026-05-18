@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { randomBytes } from 'crypto';
 import pool from '../db/pool.js';
 import { requireAuth, requireRoles } from '../middleware/auth.js';
+import { getCachedCategoryRules, invalidateCategoryRulesCache } from '../services/cache-helpers.js';
 
 export const categoryRulesRouter = Router();
 
@@ -19,9 +20,11 @@ const ensureTable = pool.query(`
 categoryRulesRouter.get('/', async (_req, res) => {
   await ensureTable;
   try {
-    const [rows] = await pool.query(
-      'SELECT id, trigger_category_id AS triggerCategoryId, effect, target_category_id AS targetCategoryId FROM category_rules ORDER BY triggerCategoryId, effect'
-    ) as any[];
+    const rows = await getCachedCategoryRules(() =>
+      pool.query(
+        'SELECT id, trigger_category_id AS triggerCategoryId, effect, target_category_id AS targetCategoryId FROM category_rules ORDER BY triggerCategoryId, effect'
+      ).then(result => result[0])
+    );
     res.json(rows);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -44,6 +47,7 @@ categoryRulesRouter.post('/', requireAuth, requireRoles('admin'), async (req, re
       'INSERT INTO category_rules (id, trigger_category_id, effect, target_category_id) VALUES (?, ?, ?, ?)',
       [id, triggerCategoryId, effect, targetCategoryId]
     );
+    await invalidateCategoryRulesCache();
     res.json({ success: true, id });
   } catch (e: any) {
     if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Esta regla ya existe.' });
@@ -55,6 +59,7 @@ categoryRulesRouter.delete('/:id', requireAuth, requireRoles('admin'), async (re
   await ensureTable;
   try {
     await pool.execute('DELETE FROM category_rules WHERE id=?', [req.params.id]);
+    await invalidateCategoryRulesCache();
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });

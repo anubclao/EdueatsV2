@@ -5,6 +5,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../db/pool.js';
+import { getCachedRecipes, invalidateRecipesCache } from '../services/cache-helpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const imagesRoot = path.join(__dirname, '..', '..', '..', '..', '..', 'images');
@@ -46,9 +47,11 @@ recipesRouter.post('/upload-image', upload.single('image'), (req: any, res) => {
 
 recipesRouter.get('/', async (_req, res) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT id, name, description, category, calories, image_url as imageUrl FROM recipes'
-    ) as any[];
+    const rows = await getCachedRecipes(() =>
+      pool.query(
+        'SELECT id, name, description, category, calories, image_url as imageUrl FROM recipes'
+      ).then(result => result[0])
+    );
     res.json(rows);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -60,6 +63,7 @@ recipesRouter.post('/', async (req, res) => {
       'INSERT INTO recipes (id, name, description, category, calories, image_url) VALUES (?, ?, ?, ?, ?, ?)',
       [id, name, description, category, calories, imageUrl || null]
     );
+    await invalidateRecipesCache();
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -71,6 +75,7 @@ recipesRouter.put('/:id', async (req, res) => {
       'UPDATE recipes SET name=?, description=?, category=?, calories=?, image_url=? WHERE id=?',
       [name, description, category, calories, imageUrl || null, req.params.id]
     );
+    await invalidateRecipesCache();
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -78,6 +83,7 @@ recipesRouter.put('/:id', async (req, res) => {
 recipesRouter.delete('/:id', async (req, res) => {
   try {
     await pool.execute('DELETE FROM recipes WHERE id=?', [req.params.id]);
+    await invalidateRecipesCache();
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
