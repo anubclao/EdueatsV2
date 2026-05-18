@@ -373,7 +373,6 @@ export const OrderFlow = () => {
   );
 
   const isVegStep = currentCategory.id === 'vegetarian' || currentCategory.id === 'vegetariano';
-  const isVegSelected = selections[currentCategory.id];
 
   // --- Category Rules Helpers ---
 
@@ -434,13 +433,7 @@ export const OrderFlow = () => {
       const isDeselecting = newState[currentCategory.id] === recipeId;
       newState[currentCategory.id] = isDeselecting ? null : recipeId;
 
-      // 2. Logic: If on Vegetarian step and selecting a dish, we might want to clear others just in case they went back/forth
-      if (!isDeselecting && isVegStep) {
-          const SAVORY_CATEGORIES = ['soup', 'starter', 'main'];
-          SAVORY_CATEGORIES.forEach(catId => newState[catId] = null);
-      }
-
-      // 3. Rules: if a selection triggers a 'blocks' rule, clear the blocked category's selection
+      // 2. Rules: if a selection triggers a 'blocks' rule, clear the blocked category's selection
       if (!isDeselecting) {
         rules
           .filter(r => r.effect === 'blocks' && r.triggerCategoryId === currentCategory.id)
@@ -456,11 +449,6 @@ export const OrderFlow = () => {
   };
 
   const handleNext = () => {
-    // Vegetarian shortcut: if veg is selected, skip everything and confirm
-    if (isVegStep && isVegSelected) {
-      setShowConfirmation(true);
-      return;
-    }
     const nextIndex = getNextAvailableIndex(currentStepIndex, selections);
     if (nextIndex >= categories.length) {
       setShowConfirmation(true);
@@ -537,9 +525,6 @@ export const OrderFlow = () => {
 
   // Button Label Logic
   let buttonLabel = currentStepIndex === categories.length - 1 ? 'REVISAR PEDIDO' : 'SIGUIENTE';
-  if (isVegStep) {
-      buttonLabel = isVegSelected ? 'REVISAR Y CONFIRMAR' : 'VER MENÚ TRADICIONAL';
-  }
 
   return (
     <div className="max-w-5xl mx-auto dark:text-white">
@@ -664,10 +649,10 @@ export const OrderFlow = () => {
         {isVegStep && (
           <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 rounded-xl text-center shadow-sm border border-green-100 dark:border-green-800">
             <p className="font-medium text-sm md:text-base">
-              <strong>Opción Alternativa:</strong> Si eliges el menú vegetariano, este reemplazará las opciones de Proteinas
+              <strong>Opción alternativa:</strong> esta categoría es opcional dentro del flujo.
             </p>
             <p className="text-xs mt-1 opacity-80">
-              Si prefieres el menú tradicional (con proteína animal), simplemente continúa sin seleccionar nada aquí.
+              Si no eliges nada aquí, puedes continuar y el pedido seguirá validándose con las condiciones configuradas por el administrador.
             </p>
           </div>
         )}
