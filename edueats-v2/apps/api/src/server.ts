@@ -24,50 +24,14 @@ if (port === 3306) {
   port = isProduction ? 8080 : 3001;
 }
 
-// Initialize Redis (optional, graceful fallback if unavailable)
-await initRedis();
-
-// Initialize BullMQ Queues (optional, requires Redis)
-await initQueues();
-
 const server = http.createServer(app);
 
-// Initialize WebSocket on HTTP server
-initWebSocket(server);
-
-server.listen(port, '0.0.0.0', () => {
-  console.log(`EduEats API v2 running on http://0.0.0.0:${port}`);
-
-  pool
-    .query('SELECT 1')
-    .then(() => {
-      console.log('[startup] MySQL connection OK');
-    })
-    .catch((error) => {
-      console.error('[startup] MySQL connection failed:', error);
-    });
-});
-
-server.on('error', (error) => {
-  console.error('[startup] HTTP server failed to bind:', error);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason) => {
-  console.error('[startup] Unhandled promise rejection:', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('[startup] Uncaught exception:', error);
-});
-
-// Graceful shutdown handlers
 const gracefulShutdown = async () => {
   console.log('[shutdown] Iniciando cierre graceful...');
-  
+
   server.close(async () => {
     console.log('[shutdown] HTTP server cerrado');
-    
+
     try {
       await pool.end();
       console.log('[shutdown] MySQL pool cerrado');
@@ -88,12 +52,56 @@ const gracefulShutdown = async () => {
     } catch (err) {
       console.error('[shutdown] Error cerrando WebSocket:', err);
     }
-    
+
     await closeRedis();
     console.log('[shutdown] Proceso finalizado');
     process.exit(0);
   });
 };
 
+async function startServer() {
+  try {
+    // Initialize Redis (optional, graceful fallback if unavailable)
+    await initRedis();
+
+    // Initialize BullMQ Queues (optional, requires Redis)
+    await initQueues();
+
+    // Initialize WebSocket on HTTP server
+    initWebSocket(server);
+
+    server.listen(port, '0.0.0.0', () => {
+      console.log(`EduEats API v2 running on http://0.0.0.0:${port}`);
+
+      pool
+        .query('SELECT 1')
+        .then(() => {
+          console.log('[startup] MySQL connection OK');
+        })
+        .catch((error) => {
+          console.error('[startup] MySQL connection failed:', error);
+        });
+    });
+
+    server.on('error', (error) => {
+      console.error('[startup] HTTP server failed to bind:', error);
+      process.exit(1);
+    });
+  } catch (error) {
+    console.error('[startup] Fatal startup error:', error);
+    process.exit(1);
+  }
+}
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[startup] Unhandled promise rejection:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[startup] Uncaught exception:', error);
+});
+
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
+
+void startServer();
