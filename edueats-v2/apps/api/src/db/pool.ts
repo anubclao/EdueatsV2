@@ -13,14 +13,39 @@ const asPositiveInt = (value: string | undefined, fallback: number) => {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 };
 
-const dbHost = asEnvString(process.env.DB_HOST) || '127.0.0.1';
-const dbUser = asEnvString(process.env.DB_USER) || 'root';
-const dbName = asEnvString(process.env.DB_NAME) || 'edueat';
-const dbPass = asEnvString(process.env.DB_PASS) || asEnvString(process.env.DB_PASSWORD);
+const databaseUrl = asEnvString(process.env.DATABASE_URL);
+
+const fromUrl = (() => {
+  if (!databaseUrl) return null;
+  try {
+    const url = new URL(databaseUrl);
+    return {
+      host: url.hostname,
+      port: url.port ? Number(url.port) : 3306,
+      user: decodeURIComponent(url.username),
+      password: decodeURIComponent(url.password),
+      database: decodeURIComponent(url.pathname.replace(/^\//, '')),
+      ssl: /ssl=true/i.test(url.search),
+    };
+  } catch (error) {
+    console.error('[db] DATABASE_URL invalida:', error);
+    return null;
+  }
+})();
+
+const dbHost = asEnvString(process.env.DB_HOST) || fromUrl?.host || '127.0.0.1';
+const dbPort = Number(asEnvString(process.env.DB_PORT) || fromUrl?.port || 3306);
+const dbUser = asEnvString(process.env.DB_USER) || fromUrl?.user || 'root';
+const dbName = asEnvString(process.env.DB_NAME) || fromUrl?.database || 'edueat';
+const dbPass =
+  asEnvString(process.env.DB_PASS) ||
+  asEnvString(process.env.DB_PASSWORD) ||
+  fromUrl?.password ||
+  '';
 
 const dbConfig = {
   host: dbHost,
-  port: Number(asEnvString(process.env.DB_PORT) || 3306),
+  port: dbPort,
   user: dbUser,
   password: dbPass,
   database: dbName,
@@ -31,7 +56,7 @@ const dbConfig = {
   connectTimeout: Number(asEnvString(process.env.DB_CONNECT_TIMEOUT_MS) || 10000),
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
-  ssl: isTruthy(process.env.DB_SSL)
+  ssl: isTruthy(process.env.DB_SSL) || Boolean(fromUrl?.ssl)
     ? {
         rejectUnauthorized: !/^false$/i.test(process.env.DB_SSL_REJECT_UNAUTHORIZED ?? ''),
       }
@@ -45,6 +70,7 @@ console.log(
     port: dbConfig.port,
     user: dbConfig.user,
     database: dbConfig.database,
+    source: databaseUrl ? 'DATABASE_URL/DB_*' : 'DB_*',
     ssl: Boolean(dbConfig.ssl),
     connectionLimit: dbConfig.connectionLimit,
     queueLimit: dbConfig.queueLimit,
