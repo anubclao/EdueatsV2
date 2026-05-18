@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
+import { enqueueEmail, enqueueNotification } from '../services/queue.js';
+import { notifyAdmins, notifyOrder, notifyUser } from '../services/websocket.js';
 
 export const ordersRouter = Router();
 ordersRouter.use(requireAuth);
@@ -83,6 +85,47 @@ ordersRouter.post('/', async (req, res) => {
     await conn.beginTransaction();
     await insertOrder(conn, req.body);
     await conn.commit();
+
+    const order = req.body;
+    void enqueueNotification('order-placed', {
+      userId: order.studentId,
+      orderId: order.id,
+      date: order.date,
+      status: order.status,
+      createdAt: Date.now(),
+    });
+
+    const [studentRows] = await pool.execute('SELECT email FROM users WHERE id=? LIMIT 1', [order.studentId]) as any[];
+    const studentEmail = studentRows?.[0]?.email;
+    if (studentEmail) {
+      void enqueueEmail('confirmation', {
+        userId: order.studentId,
+        email: studentEmail,
+        orderId: order.id,
+        deliveryDate: order.date,
+        totalPrice: 0,
+      });
+    }
+
+    notifyUser(order.studentId, 'orders:updated', {
+      orderId: order.id,
+      status: order.status,
+      date: order.date,
+      at: Date.now(),
+    });
+    notifyOrder(order.id, 'orders:updated', {
+      orderId: order.id,
+      status: order.status,
+      at: Date.now(),
+    });
+    notifyAdmins('orders:created', {
+      orderId: order.id,
+      studentId: order.studentId,
+      date: order.date,
+      status: order.status,
+      at: Date.now(),
+    });
+
     res.json({ success: true });
   } catch (e: any) {
     await conn.rollback();
@@ -99,6 +142,34 @@ ordersRouter.post('/batch', async (req, res) => {
     await conn.beginTransaction();
     for (const o of orders) await insertOrder(conn, o);
     await conn.commit();
+
+    for (const o of orders) {
+      void enqueueNotification('order-placed', {
+        userId: o.studentId,
+        orderId: o.id,
+        date: o.date,
+        status: o.status,
+        createdAt: Date.now(),
+      });
+
+      notifyUser(o.studentId, 'orders:updated', {
+        orderId: o.id,
+        status: o.status,
+        date: o.date,
+        at: Date.now(),
+      });
+      notifyOrder(o.id, 'orders:updated', {
+        orderId: o.id,
+        status: o.status,
+        at: Date.now(),
+      });
+    }
+
+    notifyAdmins('orders:batch-created', {
+      count: orders.length,
+      at: Date.now(),
+    });
+
     res.json({ success: true });
   } catch (e: any) {
     await conn.rollback();
@@ -110,6 +181,24 @@ ordersRouter.delete('/:id', async (req, res) => {
   try {
     if (req.authUser?.role !== 'admin') return res.status(403).json({ error: 'Sin permisos' });
     await pool.execute('DELETE FROM orders WHERE id=?', [req.params.id]);
+
+    void enqueueNotification('custom', {
+      userId: req.authUser.id,
+      type: 'order-deleted',
+      orderId: req.params.id,
+      message: `Pedido ${req.params.id} eliminado por administrador.`,
+      createdAt: Date.now(),
+    });
+    notifyOrder(req.params.id, 'orders:deleted', {
+      orderId: req.params.id,
+      at: Date.now(),
+    });
+    notifyAdmins('orders:deleted', {
+      orderId: req.params.id,
+      by: req.authUser.id,
+      at: Date.now(),
+    });
+
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });

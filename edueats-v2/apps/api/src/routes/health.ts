@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
+import { getQueueStatus } from '../services/queue.js';
+import { getRedisClient } from '../services/redis.js';
+import { getConnectedUsersCount } from '../services/websocket.js';
 
 export const healthRouter = Router();
 
@@ -10,7 +13,16 @@ healthRouter.get('/live', (_req, res) => {
 healthRouter.get('/ready', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ status: 'ready', db: 'mysql', dbConnection: 'ready' });
+    const redis = getRedisClient();
+    const queue = await getQueueStatus();
+    res.json({
+      status: 'ready',
+      db: 'mysql',
+      dbConnection: 'ready',
+      redis: redis ? 'connected' : 'disabled',
+      queue,
+      websocketConnectedUsers: getConnectedUsersCount(),
+    });
   } catch (error) {
     console.error('[health:ready] DB check failed:', error);
     res.status(503).json({ status: 'not_ready', db: 'mysql', dbConnection: 'error' });
@@ -20,7 +32,16 @@ healthRouter.get('/ready', async (_req, res) => {
 healthRouter.get('/', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ status: 'ok', db: 'mysql', dbConnection: 'ready' });
+    const redis = getRedisClient();
+    const queue = await getQueueStatus();
+    res.json({
+      status: 'ok',
+      db: 'mysql',
+      dbConnection: 'ready',
+      redis: redis ? 'connected' : 'disabled',
+      queue,
+      websocketConnectedUsers: getConnectedUsersCount(),
+    });
   } catch (error) {
     console.error('[health] DB check failed:', error);
     res.status(500).json({ status: 'degraded', db: 'mysql', dbConnection: 'error' });

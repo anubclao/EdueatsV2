@@ -6,8 +6,6 @@ import { Queue } from 'bullmq';
 import { getRedisClient } from './redis.js';
 let emailQueue = null;
 let notificationQueue = null;
-let emailWorker = null;
-let notificationWorker = null;
 /**
  * Initialize all background job queues
  */
@@ -107,10 +105,6 @@ export async function getQueueStatus() {
  * Close all queues and workers
  */
 export async function closeQueues() {
-    if (emailWorker)
-        await emailWorker.close();
-    if (notificationWorker)
-        await notificationWorker.close();
     if (emailQueue)
         await emailQueue.close();
     if (notificationQueue)

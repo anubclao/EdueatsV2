@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { AuthStartResponse, User } from '../types';
 import { db } from '../services/db';
+import { connectRealtime, disconnectRealtime } from '../services/realtime';
 
 interface AuthContextType {
   user: User | null;
@@ -20,6 +21,19 @@ export const AuthProvider = ({ children }: { children?: ReactNode }) => {
   useEffect(() => {
     refreshUser().finally(() => setIsLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      disconnectRealtime();
+      return;
+    }
+
+    connectRealtime(user.id, user.role);
+
+    return () => {
+      disconnectRealtime();
+    };
+  }, [user]);
 
   const refreshUser = async () => {
     try {
@@ -46,6 +60,7 @@ export const AuthProvider = ({ children }: { children?: ReactNode }) => {
 
   const logout = () => {
     db.authLogout().catch(() => undefined);
+    disconnectRealtime();
     setUser(null);
   };
 

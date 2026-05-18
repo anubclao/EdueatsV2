@@ -3,13 +3,11 @@
  * Manages background jobs (emails, notifications, reports)
  */
 
-import { Queue, Worker, QueueEvents } from 'bullmq';
+import { Queue } from 'bullmq';
 import { getRedisClient } from './redis.js';
 
 let emailQueue: Queue | null = null;
 let notificationQueue: Queue | null = null;
-let emailWorker: Worker | null = null;
-let notificationWorker: Worker | null = null;
 
 /**
  * Initialize all background job queues
@@ -126,8 +124,6 @@ export async function getQueueStatus() {
  * Close all queues and workers
  */
 export async function closeQueues() {
-  if (emailWorker) await emailWorker.close();
-  if (notificationWorker) await notificationWorker.close();
   if (emailQueue) await emailQueue.close();
   if (notificationQueue) await notificationQueue.close();
   console.log('[Queues] Queues cerradas.');

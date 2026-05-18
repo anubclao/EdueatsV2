@@ -2,6 +2,7 @@ import { useState, useEffect, FC } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../services/db';
 import { useAuth } from '../../context/AuthContext';
+import { joinOrderRoom } from '../../services/realtime';
 import { DailyMenuConfig, Recipe, CategoryDef, CategoryRule, OrderItem, Order } from '../../types';
 import { ArrowLeft, ArrowRight, Check, AlertTriangle, Utensils, Apple, Coffee, Soup, CircleDashed, Lock, X, Edit2, CheckCircle2, Star, Sparkles, Leaf } from 'lucide-react';
 
@@ -468,6 +469,7 @@ export const OrderFlow = () => {
 
   const submitOrder = async () => {
     if (!user || !date) return;
+    const orderId = existingOrder ? existingOrder.id : crypto.randomUUID();
 
     const orderItems: OrderItem[] = Object.entries(selections)
       .filter(([_category, id]) => { console.log(_category); return id !== null; })
@@ -475,7 +477,7 @@ export const OrderFlow = () => {
 
     // Submit Order
     await db.submitOrder({
-      id: existingOrder ? existingOrder.id : crypto.randomUUID(),
+      id: orderId,
       studentId: user.id,
       studentName: user.name,
       studentGrade: user.grade || 0,
@@ -486,6 +488,8 @@ export const OrderFlow = () => {
       status: 'confirmed',
       timestamp: new Date().toISOString()
     });
+
+    joinOrderRoom(orderId);
 
     // Save Preference if checked
     if (saveAsPreference) {

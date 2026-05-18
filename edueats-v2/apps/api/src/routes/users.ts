@@ -2,8 +2,14 @@ import { randomBytes } from 'crypto';
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { requireAuth, requireRoles } from '../middleware/auth.js';
+import { enqueueEmail, enqueueNotification } from '../services/queue.js';
+import { notifyAdmins, notifyUser } from '../services/websocket.js';
 
 const genToken = () => randomBytes(16).toString('hex');
+const getAppBaseUrl = () => {
+  const raw = process.env.APP_BASE_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
+  return raw.split(',')[0].trim().replace(/\/+$/, '');
+};
 
 const mapUser = (u: any) => u ? ({
   ...u,
@@ -51,6 +57,38 @@ usersRouter.post('/register', async (req, res) => {
       'INSERT INTO users (id, name, email, phone, role, grade, section, allergies, email_verified, verification_token, token_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)',
       [id, name, email, phone ?? null, role, grade ?? null, section ?? null, allergies ?? null, token, expiresAt]
     );
+
+    const verifyLink = `${getAppBaseUrl()}/verify-email?token=${encodeURIComponent(token)}`;
+    const html = `
+      <h2>Bienvenido a EduEats</h2>
+      <p>Hola ${name}, para validar tu correo haz clic aqui:</p>
+      <p><a href="${verifyLink}">Verificar mi correo</a></p>
+      <p>El enlace vence en 24 horas.</p>
+    `;
+
+    void enqueueEmail('notification', {
+      userId: id,
+      email,
+      subject: 'Verifica tu cuenta de EduEats',
+      html,
+      message: `Verifica tu cuenta aqui: ${verifyLink}`,
+    });
+
+    void enqueueNotification('custom', {
+      userId: id,
+      type: 'registration-created',
+      message: 'Tu registro fue creado. Revisa tu correo para verificar la cuenta.',
+      createdAt: Date.now(),
+    });
+
+    notifyAdmins('users:pending-verification', {
+      userId: id,
+      name,
+      email,
+      role,
+      at: Date.now(),
+    });
+
     res.json({ success: true, token });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -89,6 +127,20 @@ usersRouter.post('/verify', async (req, res) => {
       'UPDATE users SET email_verified=1, verification_token=NULL, token_expires_at=NULL WHERE id=?',
       [rows[0].id]
     );
+
+    void enqueueNotification('custom', {
+      userId: rows[0].id,
+      type: 'account-verified',
+      message: 'Tu cuenta fue verificada correctamente.',
+      createdAt: Date.now(),
+    });
+
+    notifyUser(rows[0].id, 'users:verified', {
+      userId: rows[0].id,
+      email: rows[0].email,
+      at: Date.now(),
+    });
+
     res.json({ status: 'success' });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -103,6 +155,23 @@ usersRouter.post('/resend-verification', async (req, res) => {
     const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
     await pool.execute('UPDATE users SET verification_token=?, token_expires_at=? WHERE id=?',
       [token, expiresAt, rows[0].id]);
+
+    const verifyLink = `${getAppBaseUrl()}/verify-email?token=${encodeURIComponent(token)}`;
+    const html = `
+      <h2>Nuevo enlace de verificacion</h2>
+      <p>Solicitaste un nuevo enlace para verificar tu cuenta:</p>
+      <p><a href="${verifyLink}">Verificar mi correo</a></p>
+      <p>El enlace vence en 24 horas.</p>
+    `;
+
+    void enqueueEmail('notification', {
+      userId: rows[0].id,
+      email,
+      subject: 'Nuevo enlace de verificacion - EduEats',
+      html,
+      message: `Nuevo enlace: ${verifyLink}`,
+    });
+
     console.log(`[users] Nuevo token de verificacion para ${email}: ${token}`);
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }

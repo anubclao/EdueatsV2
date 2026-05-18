@@ -6,6 +6,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { getRedisClient } from './redis.js';
 let io = null;
+let redisSubClient = null;
 const connectedUsers = new Map(); // userId -> [socketIds]
 /**
  * Initialize WebSocket server
@@ -20,9 +21,9 @@ export function initWebSocket(httpServer) {
     });
     // Use Redis adapter for multi-instance deployments
     if (redis) {
-        // Socket.IO Redis adapter requires a pub/sub connection pair
-        // For simplicity, reuse same connection (not ideal for production)
-        io.adapter(createAdapter(redis, redis));
+        // Socket.IO Redis adapter requires a pub/sub pair.
+        redisSubClient = redis.duplicate();
+        io.adapter(createAdapter(redis, redisSubClient));
         console.log('[WebSocket] Redis adapter configurado para multi-instancia');
     }
     // Connection handler
@@ -133,5 +134,9 @@ export async function closeWebSocket() {
         io.close();
         connectedUsers.clear();
         console.log('[WebSocket] Servidor cerrado');
+    }
+    if (redisSubClient) {
+        await redisSubClient.quit();
+        redisSubClient = null;
     }
 }

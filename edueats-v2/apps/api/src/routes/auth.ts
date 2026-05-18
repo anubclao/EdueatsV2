@@ -4,7 +4,9 @@ import { z } from 'zod';
 import pool from '../db/pool.js';
 import { clearSessionCookie, hashToken, requireAuth, revokeSessionByToken, setSessionCookie } from '../middleware/auth.js';
 import { sendOtpEmail } from '../services/email.js';
+import { enqueueEmail, enqueueNotification } from '../services/queue.js';
 import { getBogotaEndOfDayMs } from '../services/timezone.js';
+import { notifyUser } from '../services/websocket.js';
 
 const parsePositiveInt = (value: string | undefined, fallback: number) => {
   const n = Number(value);
@@ -194,12 +196,22 @@ authRouter.post('/start', async (req, res) => {
       console.log(`[auth] OTP para ${user.email}: ${otp}`);
       if (process.env.NODE_ENV !== 'development') {
         try {
-          const sent = await sendOtpEmail(user.email, user.name ?? user.email, otp, OTP_TTL_MINUTES);
-          if (!sent) {
-            return res.status(503).json({
-              success: false,
-              message: 'No pudimos enviar el codigo al correo. Contacta al administrador.',
-            });
+          const queued = await enqueueEmail('verification', {
+            userId: user.id,
+            email: user.email,
+            name: user.name ?? user.email,
+            code: otp,
+            ttlMinutes: OTP_TTL_MINUTES,
+          });
+
+          if (!queued) {
+            const sent = await sendOtpEmail(user.email, user.name ?? user.email, otp, OTP_TTL_MINUTES);
+            if (!sent) {
+              return res.status(503).json({
+                success: false,
+                message: 'No pudimos enviar el codigo al correo. Contacta al administrador.',
+              });
+            }
           }
         } catch (emailErr: any) {
           console.error('[auth] Error enviando email OTP:', emailErr?.message);
@@ -279,9 +291,23 @@ authRouter.post('/verify-otp', async (req, res) => {
       [sessionId, challenge.user_id, tokenHash, expiresAt, now, req.ip ?? null, (req.headers['user-agent'] ?? '').slice(0, 255)]
     );
 
+    const userPayload = toUserResponse(users[0]);
+
+    void enqueueNotification('custom', {
+      userId: userPayload.id,
+      type: 'auth-login',
+      message: 'Has iniciado sesion correctamente.',
+      createdAt: now,
+    });
+
+    notifyUser(userPayload.id, 'auth:login', {
+      ok: true,
+      at: now,
+    });
+
     setSessionCookie(res, sessionToken, sessionTtlMs);
 
-    return res.json({ success: true, user: toUserResponse(users[0]) });
+    return res.json({ success: true, user: userPayload });
   } catch (error: any) {
     return res.status(500).json({ success: false, message: error.message });
   }

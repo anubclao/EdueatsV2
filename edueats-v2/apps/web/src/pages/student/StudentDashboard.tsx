@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../services/db';
+import { onRealtime } from '../../services/realtime';
 
 import { Order, Recipe, RecurringPreference, SystemNotification, UnconfirmedMenuReportItem, DailyMenuConfig, CategoryDef } from '../../types';
 import { CheckCircle, Circle, ChevronRight, History, Calendar, Clock, X, User as UserIcon, Mail, Shield, Star, Trash2, AlertTriangle, Sparkles, PartyPopper, Activity, FileDown } from 'lucide-react';
@@ -156,6 +157,41 @@ export const StudentDashboard = () => {
 
     loadData();
   }, [user, location.search]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const reloadOrdersAndNotes = async () => {
+      const [allOrders, allNotes] = await Promise.all([
+        db.getOrders(),
+        db.getNotifications(),
+      ]);
+
+      const userOrders = allOrders.filter(o => o.studentId === user.id);
+      const normalizedOrders = userOrders.map(o => ({ ...o, date: normalizeDateOnly(o.date) }));
+      const normalizedNotes = allNotes.map(n => ({ ...n, date: normalizeDateOnly(n.date) }));
+
+      setOrders(normalizedOrders);
+
+      const relevantNotes = normalizedNotes.filter(n => {
+        const isFutureOrToday = n.date >= todayStr;
+        const isRoleMatch = n.targetRole === 'all' || n.targetRole === user.role;
+        const isNotDismissed = !dismissedNoteIds.includes(n.id);
+        return isFutureOrToday && isRoleMatch && isNotDismissed;
+      });
+      setActiveNotifications(relevantNotes);
+    };
+
+    const offNewNotification = onRealtime('notifications:new', reloadOrdersAndNotes);
+    const offOrderUpdated = onRealtime('orders:updated', reloadOrdersAndNotes);
+    const offOrderDeleted = onRealtime('orders:deleted', reloadOrdersAndNotes);
+
+    return () => {
+      offNewNotification();
+      offOrderUpdated();
+      offOrderDeleted();
+    };
+  }, [user, dismissedNoteIds, todayStr]);
 
   
 
