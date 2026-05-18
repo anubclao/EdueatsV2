@@ -43,13 +43,29 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const text = await res.text();
+    const contentType = (res.headers.get('content-type') || '').toLowerCase();
+    const isHtmlPayload = contentType.includes('text/html') || /<!doctype html|<html/i.test(text);
     let message = text || `HTTP ${res.status}`;
+
+    if (res.status === 429) {
+      throw new Error('Demasiadas solicitudes. Espera un momento e intenta nuevamente.');
+    }
+
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error('El servidor esta temporalmente ocupado. Intenta de nuevo en unos minutos.');
+    }
 
     try {
       const parsed = JSON.parse(text) as { message?: string; error?: string };
       message = parsed.message || parsed.error || message;
     } catch {
-      // Keep original text when response is not JSON.
+      if (isHtmlPayload) {
+        message = 'El servidor devolvio una respuesta temporal no disponible. Intenta nuevamente en unos minutos.';
+      } else if (res.status >= 500) {
+        message = 'Ocurrio un error interno del servidor. Intenta nuevamente.';
+      } else if (res.status >= 400) {
+        message = 'No se pudo procesar la solicitud. Verifica los datos e intenta de nuevo.';
+      }
     }
 
     throw new Error(message);
