@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
 import { getRedisClient } from './services/redis.js';
 import { RedisRateLimitStore } from './middleware/redis-rate-limit-store.js';
+import { getSessionMiddleware } from './middleware/sessions.js';
 import { categoriesRouter } from './routes/categories.js';
 import { chatbotRouter } from './routes/chatbot.js';
 import { categoryRulesRouter } from './routes/category-rules.js';
@@ -109,6 +110,9 @@ export function createApp() {
   );
 
   app.use(express.json({ limit: '50kb' }));
+
+  // ── Sesiones distribuidas con Redis (multi-instancia) ──────────────────
+  app.use(getSessionMiddleware());
 
   // Serve uploaded images
   const imagesPath = path.join(__dirname, '..', '..', '..', '..', 'images');

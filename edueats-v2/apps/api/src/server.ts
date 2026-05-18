@@ -1,7 +1,10 @@
 import { config } from 'dotenv';
+import http from 'http';
 import { createApp } from './app.js';
 import { pool } from './db/pool.js';
 import { initRedis, closeRedis } from './services/redis.js';
+import { initQueues, closeQueues } from './services/queue.js';
+import { initWebSocket, closeWebSocket } from './services/websocket.js';
 
 config();
 
@@ -24,7 +27,15 @@ if (port === 3306) {
 // Initialize Redis (optional, graceful fallback if unavailable)
 await initRedis();
 
-const server = app.listen(port, '0.0.0.0', () => {
+// Initialize BullMQ Queues (optional, requires Redis)
+await initQueues();
+
+const server = http.createServer(app);
+
+// Initialize WebSocket on HTTP server
+initWebSocket(server);
+
+server.listen(port, '0.0.0.0', () => {
   console.log(`EduEats API v2 running on http://0.0.0.0:${port}`);
 
   pool
@@ -62,6 +73,20 @@ const gracefulShutdown = async () => {
       console.log('[shutdown] MySQL pool cerrado');
     } catch (err) {
       console.error('[shutdown] Error cerrando MySQL:', err);
+    }
+
+    try {
+      await closeQueues();
+      console.log('[shutdown] Queues cerradas');
+    } catch (err) {
+      console.error('[shutdown] Error cerrando queues:', err);
+    }
+
+    try {
+      await closeWebSocket();
+      console.log('[shutdown] WebSocket cerrado');
+    } catch (err) {
+      console.error('[shutdown] Error cerrando WebSocket:', err);
     }
     
     await closeRedis();
