@@ -27,6 +27,7 @@ export const MenuPlanner = () => {
   const [feedback, setFeedback] = useState('');
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [brokenImageIds, setBrokenImageIds] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // History State
   const [menuHistory, setMenuHistory] = useState<DailyMenuConfig[]>([]);
@@ -185,7 +186,18 @@ export const MenuPlanner = () => {
             <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Planificador de Menú</h2>
             <p className="text-gray-500 dark:text-gray-400 text-sm">Selecciona recetas disponibles para {selectedDate}</p>
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-3 items-center">
+            {/* Search Box */}
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Buscar receta..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-primary/50 outline-none w-48"
+              />
+            </div>
             <input 
                 type="date" 
                 min={tomorrowStr}
@@ -233,7 +245,7 @@ export const MenuPlanner = () => {
                   </span>
                 )}
                 </h3>
-                {recipes.filter(r => r.category === category.id).map(recipe => {
+                {recipes.filter(r => r.category === category.id && r.name.toLowerCase().includes(searchQuery.toLowerCase())).map(recipe => {
                 const isSelected = menuItems.some(i => i.recipeId === recipe.id);
                 const isMandatory = menuItems.find(i => i.recipeId === recipe.id)?.isMandatory;
 

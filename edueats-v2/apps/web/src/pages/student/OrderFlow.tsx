@@ -664,7 +664,7 @@ export const OrderFlow = () => {
         {isVegStep && (
           <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 rounded-xl text-center shadow-sm border border-green-100 dark:border-green-800">
             <p className="font-medium text-sm md:text-base">
-              <strong>Opción Alternativa:</strong> Si eliges el menú vegetariano, este reemplazará la sopa, entrada y plato fuerte del menú tradicional.
+              <strong>Opción Alternativa:</strong> Si eliges el menú vegetariano, este reemplazará las opciones de Proteinas
             </p>
             <p className="text-xs mt-1 opacity-80">
               Si prefieres el menú tradicional (con proteína animal), simplemente continúa sin seleccionar nada aquí.
