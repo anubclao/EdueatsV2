@@ -5,6 +5,8 @@ import helmet from 'helmet';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
+import { getRedisClient } from './services/redis.js';
+import { RedisRateLimitStore } from './middleware/redis-rate-limit-store.js';
 import { categoriesRouter } from './routes/categories.js';
 import { chatbotRouter } from './routes/chatbot.js';
 import { categoryRulesRouter } from './routes/category-rules.js';
@@ -62,17 +64,19 @@ export function createApp() {
     })
   );
 
-  // ── Rate limiting global: 200 req / min por IP ───────────────────────────
+  // ── Rate limiting global: 200 req / min por IP (con Redis/fallback) ──────
   const globalLimiter = rateLimit({
     windowMs: 60_000,
     max: 200,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Demasiadas solicitudes, intenta en un momento.' },
+    store: new RedisRateLimitStore(),
+    keyGenerator: (req) => req.ip || 'unknown',
   });
   app.use('/api/', globalLimiter);
 
-  // ── Rate limiting estricto en auth: 10 req / 15 min por IP ──────────────
+  // ── Rate limiting estricto en auth: 10 req / 15 min por IP (con Redis) ──
   const authLimiter = rateLimit({
     windowMs: 15 * 60_000,
     max: 10,
@@ -80,6 +84,8 @@ export function createApp() {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Demasiados intentos. Intenta en 15 minutos.' },
+    store: new RedisRateLimitStore(),
+    keyGenerator: (req) => req.ip || 'unknown',
   });
   app.use('/api/users/register', authLimiter);
   app.use('/api/users/verify', authLimiter);

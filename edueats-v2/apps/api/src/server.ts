@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import { createApp } from './app.js';
 import { pool } from './db/pool.js';
+import { initRedis, closeRedis } from './services/redis.js';
 
 config();
 
@@ -19,6 +20,9 @@ if (port === 3306) {
   );
   port = isProduction ? 8080 : 3001;
 }
+
+// Initialize Redis (optional, graceful fallback if unavailable)
+await initRedis();
 
 const server = app.listen(port, '0.0.0.0', () => {
   console.log(`EduEats API v2 running on http://0.0.0.0:${port}`);
@@ -45,3 +49,26 @@ process.on('unhandledRejection', (reason) => {
 process.on('uncaughtException', (error) => {
   console.error('[startup] Uncaught exception:', error);
 });
+
+// Graceful shutdown handlers
+const gracefulShutdown = async () => {
+  console.log('[shutdown] Iniciando cierre graceful...');
+  
+  server.close(async () => {
+    console.log('[shutdown] HTTP server cerrado');
+    
+    try {
+      await pool.end();
+      console.log('[shutdown] MySQL pool cerrado');
+    } catch (err) {
+      console.error('[shutdown] Error cerrando MySQL:', err);
+    }
+    
+    await closeRedis();
+    console.log('[shutdown] Proceso finalizado');
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
