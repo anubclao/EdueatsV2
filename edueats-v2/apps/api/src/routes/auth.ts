@@ -70,52 +70,83 @@ const verifySchema = z.object({
 const hashOtp = (otp: string, salt: string) => createHash('sha256').update(`${salt}:${otp}`).digest('hex');
 
 const ensureAuthTables = async () => {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS auth_otp_challenges (
-      id VARCHAR(80) PRIMARY KEY,
-      user_id VARCHAR(191) NULL,
-      salt VARCHAR(64) NOT NULL,
-      otp_hash VARCHAR(128) NOT NULL,
-      expires_at BIGINT NOT NULL,
-      attempts INT NOT NULL DEFAULT 0,
-      max_attempts INT NOT NULL DEFAULT 5,
-      consumed_at BIGINT NULL,
-      created_at BIGINT NOT NULL,
-      ip VARCHAR(120) NULL,
-      user_agent VARCHAR(255) NULL,
-      INDEX idx_auth_otp_user_created (user_id, created_at),
-      INDEX idx_auth_otp_expires (expires_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
+  // Verificar si las tablas ya existen antes de intentar crearlas
+  const [existingTables] = await pool.query(
+    `SELECT TABLE_NAME FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME IN ('auth_otp_challenges', 'auth_sessions')`
+  ) as any[];
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS auth_sessions (
-      id VARCHAR(80) PRIMARY KEY,
-      user_id VARCHAR(191) NOT NULL,
-      token_hash VARCHAR(128) NOT NULL,
-      expires_at BIGINT NOT NULL,
-      revoked_at BIGINT NULL,
-      created_at BIGINT NOT NULL,
-      ip VARCHAR(120) NULL,
-      user_agent VARCHAR(255) NULL,
-      UNIQUE KEY uq_auth_sessions_token_hash (token_hash),
-      INDEX idx_auth_sessions_user (user_id, revoked_at),
-      INDEX idx_auth_sessions_expires (expires_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
+  const existing = new Set((existingTables as any[]).map((r: any) => r.TABLE_NAME));
+
+  if (!existing.has('auth_otp_challenges')) {
+    await pool.query(`
+      CREATE TABLE auth_otp_challenges (
+        id VARCHAR(80) PRIMARY KEY,
+        user_id VARCHAR(191) NULL,
+        salt VARCHAR(64) NOT NULL,
+        otp_hash VARCHAR(128) NOT NULL,
+        expires_at BIGINT NOT NULL,
+        attempts INT NOT NULL DEFAULT 0,
+        max_attempts INT NOT NULL DEFAULT 5,
+        consumed_at BIGINT NULL,
+        created_at BIGINT NOT NULL,
+        ip VARCHAR(120) NULL,
+        user_agent VARCHAR(255) NULL,
+        INDEX idx_auth_otp_user_created (user_id, created_at),
+        INDEX idx_auth_otp_expires (expires_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    console.log('[auth] Tabla auth_otp_challenges creada');
+  }
+
+  if (!existing.has('auth_sessions')) {
+    await pool.query(`
+      CREATE TABLE auth_sessions (
+        id VARCHAR(80) PRIMARY KEY,
+        user_id VARCHAR(191) NOT NULL,
+        token_hash VARCHAR(128) NOT NULL,
+        expires_at BIGINT NOT NULL,
+        revoked_at BIGINT NULL,
+        created_at BIGINT NOT NULL,
+        ip VARCHAR(120) NULL,
+        user_agent VARCHAR(255) NULL,
+        UNIQUE KEY uq_auth_sessions_token_hash (token_hash),
+        INDEX idx_auth_sessions_user (user_id, revoked_at),
+        INDEX idx_auth_sessions_expires (expires_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    console.log('[auth] Tabla auth_sessions creada');
+  }
 };
 
-const authTablesReady = ensureAuthTables();
+// Permite reintentar si la promesa inicial falló (ej: BD no lista al arrancar)
+let authTablesReadyPromise: Promise<void> | null = null;
+
+const getAuthTablesReady = () => {
+  if (!authTablesReadyPromise) {
+    authTablesReadyPromise = ensureAuthTables().catch((err) => {
+      authTablesReadyPromise = null; // permite reintentar en la próxima petición
+      throw err;
+    });
+  }
+  return authTablesReadyPromise;
+};
+
+// Inicializar en arranque (fallo no es fatal — se reintenta en cada request)
+getAuthTablesReady().catch((err) =>
+  console.error('[auth] Error inicializando tablas (se reintentará):', err?.message ?? err)
+);
 
 const waitAuthTables = async (res: any) => {
   try {
-    await authTablesReady;
+    await getAuthTablesReady();
     return true;
   } catch (error: any) {
     console.error('[auth] Error inicializando tablas de autenticacion:', error?.message ?? error);
     res.status(500).json({
       success: false,
-      message: 'No se pudo inicializar el servicio de autenticacion. Revisa permisos de base de datos.',
+      message: `No se pudo inicializar el servicio de autenticacion: ${error?.message ?? 'Error de base de datos'}`,
     });
     return false;
   }

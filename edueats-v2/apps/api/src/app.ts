@@ -131,37 +131,36 @@ export function createApp() {
   app.use('/api/reports', reportsRouter);
   app.use('/api/chatbot', chatbotRouter);
 
-  // Serve React frontend in production
-  if (process.env.NODE_ENV === 'production') {
-    const bundledWebDist = path.join(__dirname, 'web');
-    const workspaceWebDist = path.join(__dirname, '..', '..', 'web', 'dist');
-    const envWebDist = process.env.WEB_DIST_PATH
-      ? path.resolve(process.cwd(), process.env.WEB_DIST_PATH)
-      : null;
+  // Serve React frontend — sirve el dist si existe (independiente de NODE_ENV)
+  const bundledWebDist = path.join(__dirname, 'web');
+  const workspaceWebDist = path.join(__dirname, '..', '..', 'web', 'dist');
+  const envWebDist = process.env.WEB_DIST_PATH
+    ? path.resolve(process.cwd(), process.env.WEB_DIST_PATH)
+    : null;
 
-    // WEB_DIST_PATH tiene prioridad para que Hostinger use siempre el build fresco
-    const webDistCandidates = [envWebDist, bundledWebDist, workspaceWebDist].filter(Boolean) as string[];
-    const webDist = webDistCandidates.find((candidate) => fs.existsSync(path.join(candidate, 'index.html')));
+  // WEB_DIST_PATH tiene prioridad para que Hostinger use siempre el build fresco
+  const webDistCandidates = [envWebDist, bundledWebDist, workspaceWebDist].filter(Boolean) as string[];
+  const webDist = webDistCandidates.find((candidate) => fs.existsSync(path.join(candidate, 'index.html')));
 
-    if (!webDist) {
-      console.error(
-        `[startup] No se encontro dist del frontend. Rutas probadas: ${webDistCandidates.join(', ')}`
-      );
-    } else {
-      app.use(express.static(webDist));
+  if (!webDist) {
+    console.warn(
+      `[startup] No se encontro dist del frontend. Rutas probadas: ${webDistCandidates.join(', ')}`
+    );
+  } else {
+    console.log(`[startup] Sirviendo frontend desde: ${webDist}`);
+    app.use(express.static(webDist));
 
-      // SPA fallback — any non-API route returns index.html
-      app.get('*', (req, res) => {
-        if (req.path.startsWith('/api/') || req.path.startsWith('/images/')) {
-          return res.status(404).json({ error: 'Not found' });
-        }
-        if (req.path.startsWith('/assets/') || /\.[a-zA-Z0-9]+$/.test(req.path)) {
-          return res.status(404).json({ error: 'Asset not found' });
-        }
+    // SPA fallback — any non-API route returns index.html
+    app.get('*', (req, res) => {
+      if (req.path.startsWith('/api/') || req.path.startsWith('/images/')) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+      if (req.path.startsWith('/assets/') || /\.[a-zA-Z0-9]+$/.test(req.path)) {
+        return res.status(404).json({ error: 'Asset not found' });
+      }
 
-        res.sendFile(path.join(webDist, 'index.html'));
-      });
-    }
+      res.sendFile(path.join(webDist, 'index.html'));
+    });
   }
 
   return app;
