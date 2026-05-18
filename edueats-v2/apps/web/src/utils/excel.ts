@@ -1,5 +1,5 @@
 import type ExcelJS from 'exceljs';
-import { Order, Recipe, User } from "../types";
+import { CategoryDef, Order, Recipe, User } from "../types";
 
 // --- Helper Functions ---
 const getRecipeName = (id: string, recipes: Recipe[]) => recipes.find(r => r.id === id)?.name || 'No seleccionado';
@@ -178,4 +178,146 @@ export const generateAdvancedReport = async (
     .forEach(([dish, count]) => sheetIndicators.addRow([dish, count]));
 
   await downloadWorkbook(workbook, `Reporte_General_${dateRange.start}_al_${dateRange.end}.xlsx`);
+};
+
+type UserConsolidatedRow = {
+  userId: string;
+  userName: string;
+  grade: number | string;
+  section: string;
+  totalOrders: number;
+  categoryCounts: Record<string, number>;
+};
+
+export const exportConsolidatedOrdersByUserRange = async (
+  orders: Order[],
+  recipes: Recipe[],
+  categories: CategoryDef[],
+  dateRange: { start: string; end: string }
+) => {
+  const { default: ExcelJS } = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const validOrders = orders
+    .filter(o => o.status === 'confirmed' && o.date >= dateRange.start && o.date <= dateRange.end)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.studentName.localeCompare(b.studentName));
+
+  if (!validOrders.length) {
+    throw new Error('No hay pedidos confirmados en el rango seleccionado.');
+  }
+
+  const categoryNameById = new Map(categories.map(cat => [cat.id, cat.name]));
+  const categoryOrderById = new Map(categories.map((cat, idx) => [cat.id, cat.order ?? idx]));
+
+  // Sheet 1: resumen de cocina por categoria/plato.
+  const kitchenSheet = workbook.addWorksheet('Resumen Cocina');
+  kitchenSheet.columns = [
+    { header: 'Categoria', key: 'categoria', width: 24 },
+    { header: 'Plato', key: 'plato', width: 34 },
+    { header: 'Total Selecciones', key: 'total', width: 18 },
+  ];
+
+  const kitchenCounts: Record<string, number> = {};
+  validOrders.forEach(order => {
+    order.items.forEach(item => {
+      const key = `${item.category}|${item.recipeId}`;
+      kitchenCounts[key] = (kitchenCounts[key] || 0) + 1;
+    });
+  });
+
+  Object.entries(kitchenCounts)
+    .map(([key, total]) => {
+      const [categoryId, recipeId] = key.split('|');
+      return {
+        categoryId,
+        categoryName: categoryNameById.get(categoryId) || translateCategory(categoryId),
+        recipeName: getRecipeName(recipeId, recipes),
+        total,
+      };
+    })
+    .sort((a, b) => {
+      const orderA = categoryOrderById.get(a.categoryId) ?? Number.MAX_SAFE_INTEGER;
+      const orderB = categoryOrderById.get(b.categoryId) ?? Number.MAX_SAFE_INTEGER;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.recipeName.localeCompare(b.recipeName);
+    })
+    .forEach(row => kitchenSheet.addRow([row.categoryName, row.recipeName, row.total]));
+
+  // Sheet 2: resumen logistico agrupado por usuario.
+  const userSheet = workbook.addWorksheet('Logistico por Usuario');
+  const userMap = new Map<string, UserConsolidatedRow>();
+
+  validOrders.forEach(order => {
+    const userId = order.studentId || order.studentName;
+    if (!userMap.has(userId)) {
+      userMap.set(userId, {
+        userId,
+        userName: order.studentName,
+        grade: order.studentGrade ?? '-',
+        section: order.studentSection || '-',
+        totalOrders: 0,
+        categoryCounts: Object.fromEntries(categories.map(cat => [cat.id, 0])),
+      });
+    }
+
+    const userRow = userMap.get(userId)!;
+    userRow.totalOrders += 1;
+    order.items.forEach(item => {
+      userRow.categoryCounts[item.category] = (userRow.categoryCounts[item.category] || 0) + 1;
+    });
+  });
+
+  userSheet.columns = [
+    { header: 'Usuario ID', key: 'userId', width: 28 },
+    { header: 'Usuario', key: 'userName', width: 28 },
+    { header: 'Grado', key: 'grade', width: 10 },
+    { header: 'Seccion', key: 'section', width: 12 },
+    { header: 'Total Pedidos', key: 'totalOrders', width: 15 },
+    ...categories.map(cat => ({ header: cat.name, key: `cat_${cat.id}`, width: 16 })),
+  ];
+
+  [...userMap.values()]
+    .sort((a, b) => b.totalOrders - a.totalOrders || a.userName.localeCompare(b.userName))
+    .forEach(user => {
+      userSheet.addRow([
+        user.userId,
+        user.userName,
+        user.grade,
+        user.section,
+        user.totalOrders,
+        ...categories.map(cat => user.categoryCounts[cat.id] || 0),
+      ]);
+    });
+
+  // Sheet 3: detalle completo por pedido para auditoria.
+  const detailSheet = workbook.addWorksheet('Detalle Consolidado');
+  detailSheet.columns = [
+    { header: 'Fecha', key: 'fecha', width: 14 },
+    { header: 'Pedido ID', key: 'orderId', width: 14 },
+    { header: 'Usuario ID', key: 'userId', width: 28 },
+    { header: 'Usuario', key: 'userName', width: 26 },
+    { header: 'Grado', key: 'grade', width: 10 },
+    { header: 'Seccion', key: 'section', width: 12 },
+    ...categories.map(cat => ({ header: cat.name, key: `detail_${cat.id}`, width: 24 })),
+  ];
+
+  validOrders.forEach(order => {
+    const itemsByCategory = new Map(order.items.map(item => [item.category, item.recipeId]));
+    detailSheet.addRow([
+      order.date,
+      order.id.slice(0, 8),
+      order.studentId,
+      order.studentName,
+      order.studentGrade ?? '-',
+      order.studentSection || '-',
+      ...categories.map(cat => {
+        const recipeId = itemsByCategory.get(cat.id);
+        return recipeId ? getRecipeName(recipeId, recipes) : '';
+      }),
+    ]);
+  });
+
+  await downloadWorkbook(
+    workbook,
+    `Consolidado_Pedidos_Usuarios_${dateRange.start}_al_${dateRange.end}.xlsx`
+  );
 };

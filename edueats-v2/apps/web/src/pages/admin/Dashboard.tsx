@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { db } from '../../services/db';
 import { Order, Recipe, CategoryDef, OrderItem } from '../../types';
-import { Download, Filter, Users, ChefHat, ClipboardList, Utensils, PlusCircle } from 'lucide-react';
+import { Download, Filter, Users, ChefHat, ClipboardList, Utensils, PlusCircle, Calendar } from 'lucide-react';
 import { exportOrdersToExcel } from '../../utils/excel';
 
 // Helper for local date string YYYY-MM-DD
@@ -12,6 +12,14 @@ const getLocalDateStr = () => {
     return local.toISOString().split('T')[0];
 };
 
+const getStartDateForRange = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 6);
+  const offset = d.getTimezoneOffset() * 60000;
+  const local = new Date(d.getTime() - offset);
+  return local.toISOString().split('T')[0];
+};
+
 export const Dashboard = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -20,6 +28,8 @@ export const Dashboard = () => {
   // Filters
   const [selectedDate, setSelectedDate] = useState<string>(getLocalDateStr());
   const [selectedGrade, setSelectedGrade] = useState<string>('All');
+  const [rangeStartDate, setRangeStartDate] = useState<string>(getStartDateForRange());
+  const [rangeEndDate, setRangeEndDate] = useState<string>(getLocalDateStr());
   
   // Batch Order Modal State
   const [showBatchModal, setShowBatchModal] = useState(false);
@@ -81,6 +91,63 @@ export const Dashboard = () => {
 
   const handleExport = () => {
     void exportOrdersToExcel(filteredOrders, recipes, `Reporte_Menu_${selectedDate}.xlsx`);
+  };
+
+  const rangeOrders = useMemo(
+    () =>
+      orders.filter(
+        o => o.status === 'confirmed' && o.date >= rangeStartDate && o.date <= rangeEndDate
+      ),
+    [orders, rangeStartDate, rangeEndDate]
+  );
+
+  const userConsolidatedRows = useMemo(() => {
+    const usersMap = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        grade: number | string;
+        section: string;
+        totalOrders: number;
+      }
+    >();
+
+    rangeOrders.forEach(order => {
+      const key = order.studentId || order.studentName;
+      if (!usersMap.has(key)) {
+        usersMap.set(key, {
+          id: key,
+          name: order.studentName,
+          grade: order.studentGrade ?? '-',
+          section: order.studentSection || '-',
+          totalOrders: 0,
+        });
+      }
+      usersMap.get(key)!.totalOrders += 1;
+    });
+
+    return [...usersMap.values()].sort(
+      (a, b) => b.totalOrders - a.totalOrders || a.name.localeCompare(b.name)
+    );
+  }, [rangeOrders]);
+
+  const handleConsolidatedExport = async () => {
+    if (rangeStartDate > rangeEndDate) {
+      alert('El rango es invalido: la fecha inicial no puede ser mayor que la final.');
+      return;
+    }
+
+    if (!rangeOrders.length) {
+      alert('No hay pedidos confirmados en el rango seleccionado.');
+      return;
+    }
+
+    const { exportConsolidatedOrdersByUserRange } = await import('../../utils/excel');
+    await exportConsolidatedOrdersByUserRange(rangeOrders, recipes, categories, {
+      start: rangeStartDate,
+      end: rangeEndDate,
+    });
   };
 
   // --- Batch Order Logic (Dynamic) ---
@@ -318,6 +385,98 @@ export const Dashboard = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <div>
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-4">
+          <div>
+            <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+              <Calendar size={20} className="text-gray-500" /> Consolidado por Usuario (Rango de Fechas)
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Combina resumen de cocina y logistica en un solo Excel agrupado por usuario.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-gray-800 p-2 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm w-full lg:w-auto">
+            <input
+              type="date"
+              value={rangeStartDate}
+              onChange={e => setRangeStartDate(e.target.value)}
+              className="border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white px-3 py-2 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+            <span className="text-gray-400">-</span>
+            <input
+              type="date"
+              value={rangeEndDate}
+              onChange={e => setRangeEndDate(e.target.value)}
+              className="border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white px-3 py-2 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+            <button
+              onClick={handleConsolidatedExport}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm transition-colors text-sm font-bold"
+            >
+              <Download size={16} /> Descargar Consolidado
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 mb-4">
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase">Pedidos en rango</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{rangeOrders.length}</p>
+          </div>
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase">Usuarios con pedidos</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{userConsolidatedRows.length}</p>
+          </div>
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase">Categorias incluidas</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{categories.length}</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm min-w-[600px]">
+              <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700">
+                <tr>
+                  <th className="px-6 py-4 font-semibold text-gray-700 dark:text-gray-300">Usuario</th>
+                  <th className="px-6 py-4 font-semibold text-gray-700 dark:text-gray-300 text-center">Grado</th>
+                  <th className="px-6 py-4 font-semibold text-gray-700 dark:text-gray-300 text-center">Seccion</th>
+                  <th className="px-6 py-4 font-semibold text-gray-700 dark:text-gray-300 text-center">Total Pedidos</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                {userConsolidatedRows.length > 0 ? (
+                  userConsolidatedRows.slice(0, 15).map((row) => (
+                    <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200">{row.name}</td>
+                      <td className="px-6 py-4 text-center text-gray-600 dark:text-gray-400">{row.grade}</td>
+                      <td className="px-6 py-4 text-center text-gray-600 dark:text-gray-400">{row.section}</td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
+                          {row.totalOrders}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-gray-400 dark:text-gray-500">
+                      No hay pedidos confirmados en este rango.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {userConsolidatedRows.length > 15 && (
+            <p className="text-xs text-gray-400 text-center py-3 border-t border-gray-100 dark:border-gray-700">
+              Mostrando 15 de {userConsolidatedRows.length} usuarios. El Excel contiene el consolidado completo.
+            </p>
+          )}
         </div>
       </div>
 
