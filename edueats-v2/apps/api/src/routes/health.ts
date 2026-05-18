@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { getQueueStatus } from '../services/queue.js';
-import { getRedisClient } from '../services/redis.js';
 import { getConnectedUsersCount } from '../services/websocket.js';
 
 export const healthRouter = Router();
@@ -13,13 +12,11 @@ healthRouter.get('/live', (_req, res) => {
 healthRouter.get('/ready', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
-    const redis = getRedisClient();
     const queue = await getQueueStatus();
     res.json({
       status: 'ready',
       db: 'mysql',
       dbConnection: 'ready',
-      redis: redis ? 'connected' : 'disabled',
       queue,
       websocketConnectedUsers: getConnectedUsersCount(),
     });
@@ -32,13 +29,11 @@ healthRouter.get('/ready', async (_req, res) => {
 healthRouter.get('/', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
-    const redis = getRedisClient();
     const queue = await getQueueStatus();
     res.json({
       status: 'ok',
       db: 'mysql',
       dbConnection: 'ready',
-      redis: redis ? 'connected' : 'disabled',
       queue,
       websocketConnectedUsers: getConnectedUsersCount(),
     });

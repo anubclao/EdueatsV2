@@ -5,33 +5,20 @@
 
 import { Server as HTTPServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
-import { createAdapter } from '@socket.io/redis-adapter';
-import { getRedisClient } from './redis.js';
 
 let io: SocketIOServer | null = null;
-let redisSubClient: any = null;
 const connectedUsers = new Map<string, string[]>(); // userId -> [socketIds]
 
 /**
  * Initialize WebSocket server
  */
 export function initWebSocket(httpServer: HTTPServer) {
-  const redis = getRedisClient();
-
   io = new SocketIOServer(httpServer, {
     cors: {
       origin: (process.env.CORS_ORIGIN || 'http://localhost:5173').split(','),
       credentials: true,
     },
   });
-
-  // Use Redis adapter for multi-instance deployments
-  if (redis) {
-    // Socket.IO Redis adapter requires a pub/sub pair.
-    redisSubClient = redis.duplicate();
-    io.adapter(createAdapter(redis as any, redisSubClient));
-    console.log('[WebSocket] Redis adapter configurado para multi-instancia');
-  }
 
   // Connection handler
   io.on('connection', (socket: Socket) => {
@@ -159,10 +146,5 @@ export async function closeWebSocket() {
     io.close();
     connectedUsers.clear();
     console.log('[WebSocket] Servidor cerrado');
-  }
-
-  if (redisSubClient) {
-    await redisSubClient.quit();
-    redisSubClient = null;
   }
 }

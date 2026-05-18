@@ -1,11 +1,46 @@
-import { getCached, setCached, deleteCached, clearCachePattern } from './redis.js';
+type CacheEntry = {
+  value: unknown;
+  expiresAt: number;
+};
+
+const cacheStore = new Map<string, CacheEntry>();
+
+const getFromCache = <T>(key: string): T | null => {
+  const entry = cacheStore.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    cacheStore.delete(key);
+    return null;
+  }
+  return entry.value as T;
+};
+
+const setInCache = <T>(key: string, value: T, ttlSeconds: number) => {
+  cacheStore.set(key, {
+    value,
+    expiresAt: Date.now() + Math.max(1, ttlSeconds) * 1000,
+  });
+};
+
+const deleteFromCache = (key: string) => {
+  cacheStore.delete(key);
+};
+
+const clearByPattern = (prefixPattern: string) => {
+  const prefix = prefixPattern.replace('*', '');
+  for (const key of cacheStore.keys()) {
+    if (key.startsWith(prefix)) {
+      cacheStore.delete(key);
+    }
+  }
+};
 
 /**
  * Cache helper functions for common patterns
  */
 
 /**
- * Get or fetch menu data with Redis caching
+ * Get or fetch menu data with in-memory caching.
  * Cache TTL: 1 hour (menus rarely change during the day)
  */
 export async function getCachedMenus<T>(
@@ -13,13 +48,13 @@ export async function getCachedMenus<T>(
   fetcher: () => Promise<T>,
   ttlSeconds: number = 3600
 ): Promise<T> {
-  const cached = await getCached<T>(key);
+  const cached = getFromCache<T>(key);
   if (cached !== null) {
     return cached;
   }
 
   const fresh = await fetcher();
-  await setCached(key, fresh, ttlSeconds);
+  setInCache(key, fresh, ttlSeconds);
   return fresh;
 }
 
@@ -28,27 +63,27 @@ export async function getCachedMenus<T>(
  */
 export async function invalidateMenuCache(date?: string): Promise<void> {
   if (date) {
-    await deleteCached(`menu:${date}`);
+    deleteFromCache(`menu:${date}`);
   }
   // Clear all menu patterns if no specific date
-  await clearCachePattern('menu:*');
+  clearByPattern('menu:*');
 }
 
 /**
- * Get or fetch recipes with Redis caching
+ * Get or fetch recipes with in-memory caching.
  * Cache TTL: 6 hours (recipes are static)
  */
 export async function getCachedRecipes<T>(
   fetcher: () => Promise<T>,
   ttlSeconds: number = 21600
 ): Promise<T> {
-  const cached = await getCached<T>('recipes:all');
+  const cached = getFromCache<T>('recipes:all');
   if (cached !== null) {
     return cached;
   }
 
   const fresh = await fetcher();
-  await setCached('recipes:all', fresh, ttlSeconds);
+  setInCache('recipes:all', fresh, ttlSeconds);
   return fresh;
 }
 
@@ -56,25 +91,25 @@ export async function getCachedRecipes<T>(
  * Invalidate recipes cache
  */
 export async function invalidateRecipesCache(): Promise<void> {
-  await deleteCached('recipes:all');
-  await clearCachePattern('recipes:*');
+  deleteFromCache('recipes:all');
+  clearByPattern('recipes:*');
 }
 
 /**
- * Get or fetch categories with Redis caching
+ * Get or fetch categories with in-memory caching.
  * Cache TTL: 6 hours (categories are static)
  */
 export async function getCachedCategories<T>(
   fetcher: () => Promise<T>,
   ttlSeconds: number = 21600
 ): Promise<T> {
-  const cached = await getCached<T>('categories:all');
+  const cached = getFromCache<T>('categories:all');
   if (cached !== null) {
     return cached;
   }
 
   const fresh = await fetcher();
-  await setCached('categories:all', fresh, ttlSeconds);
+  setInCache('categories:all', fresh, ttlSeconds);
   return fresh;
 }
 
@@ -82,25 +117,25 @@ export async function getCachedCategories<T>(
  * Invalidate categories cache
  */
 export async function invalidateCategoriesCache(): Promise<void> {
-  await deleteCached('categories:all');
-  await clearCachePattern('categories:*');
+  deleteFromCache('categories:all');
+  clearByPattern('categories:*');
 }
 
 /**
- * Get or fetch category rules with Redis caching
+ * Get or fetch category rules with in-memory caching.
  * Cache TTL: 6 hours (rules are static)
  */
 export async function getCachedCategoryRules<T>(
   fetcher: () => Promise<T>,
   ttlSeconds: number = 21600
 ): Promise<T> {
-  const cached = await getCached<T>('category-rules:all');
+  const cached = getFromCache<T>('category-rules:all');
   if (cached !== null) {
     return cached;
   }
 
   const fresh = await fetcher();
-  await setCached('category-rules:all', fresh, ttlSeconds);
+  setInCache('category-rules:all', fresh, ttlSeconds);
   return fresh;
 }
 
@@ -108,6 +143,6 @@ export async function getCachedCategoryRules<T>(
  * Invalidate category rules cache
  */
 export async function invalidateCategoryRulesCache(): Promise<void> {
-  await deleteCached('category-rules:all');
-  await clearCachePattern('category-rules:*');
+  deleteFromCache('category-rules:all');
+  clearByPattern('category-rules:*');
 }

@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
-import { RedisRateLimitStore } from './middleware/redis-rate-limit-store.js';
+import { InMemoryRateLimitStore } from './middleware/in-memory-rate-limit-store.js';
 import { getSessionMiddleware } from './middleware/sessions.js';
 import { categoriesRouter } from './routes/categories.js';
 import { chatbotRouter } from './routes/chatbot.js';
@@ -64,18 +64,18 @@ export function createApp() {
     })
   );
 
-  // ── Rate limiting global: 200 req / min por IP (con Redis/fallback) ──────
+  // ── Rate limiting global: 200 req / min por IP (en memoria) ──────
   const globalLimiter = rateLimit({
     windowMs: 60_000,
     max: 200,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Demasiadas solicitudes, intenta en un momento.' },
-    store: new RedisRateLimitStore(),
+    store: new InMemoryRateLimitStore(),
   });
   app.use('/api/', globalLimiter);
 
-  // ── Rate limiting estricto en auth: 10 req / 15 min por IP (con Redis) ──
+  // ── Rate limiting estricto en auth: 10 req / 15 min por IP (en memoria) ──
   const authLimiter = rateLimit({
     windowMs: 15 * 60_000,
     max: 10,
@@ -83,7 +83,7 @@ export function createApp() {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Demasiados intentos. Intenta en 15 minutos.' },
-    store: new RedisRateLimitStore(),
+    store: new InMemoryRateLimitStore(),
   });
   app.use('/api/users/register', authLimiter);
   app.use('/api/users/verify', authLimiter);
@@ -108,7 +108,7 @@ export function createApp() {
 
   app.use(express.json({ limit: '50kb' }));
 
-  // ── Sesiones distribuidas con Redis (multi-instancia) ──────────────────
+  // ── Sesiones en MemoryStore (single-instance) ───────────────────────────
   app.use(getSessionMiddleware());
 
   // Serve uploaded images

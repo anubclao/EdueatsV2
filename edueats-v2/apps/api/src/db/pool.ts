@@ -12,6 +12,7 @@ const asPositiveInt = (value: string | undefined, fallback: number) => {
   const parsed = Number(asEnvString(value));
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 };
+const normalizeDbHost = (host: string) => host.trim();
 
 const databaseUrl = asEnvString(process.env.DATABASE_URL);
 
@@ -33,7 +34,8 @@ const fromUrl = (() => {
   }
 })();
 
-const dbHost = asEnvString(process.env.DB_HOST) || fromUrl?.host || '127.0.0.1';
+const rawDbHost = asEnvString(process.env.DB_HOST) || fromUrl?.host || 'localhost';
+const dbHost = normalizeDbHost(rawDbHost);
 const dbPort = Number(asEnvString(process.env.DB_PORT) || fromUrl?.port || 3306);
 const dbUser = asEnvString(process.env.DB_USER) || fromUrl?.user || 'root';
 const dbName = asEnvString(process.env.DB_NAME) || fromUrl?.database || 'edueat';

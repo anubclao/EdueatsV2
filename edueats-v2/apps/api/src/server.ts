@@ -2,7 +2,6 @@ import { config } from 'dotenv';
 import http from 'http';
 import { createApp } from './app.js';
 import { pool } from './db/pool.js';
-import { initRedis, closeRedis } from './services/redis.js';
 import { initQueues, closeQueues } from './services/queue.js';
 import { initWebSocket, closeWebSocket } from './services/websocket.js';
 
@@ -53,7 +52,6 @@ const gracefulShutdown = async () => {
       console.error('[shutdown] Error cerrando WebSocket:', err);
     }
 
-    await closeRedis();
     console.log('[shutdown] Proceso finalizado');
     process.exit(0);
   });
@@ -61,10 +59,7 @@ const gracefulShutdown = async () => {
 
 async function startServer() {
   try {
-    // Initialize Redis (optional, graceful fallback if unavailable)
-    await initRedis();
-
-    // Initialize BullMQ Queues (optional, requires Redis)
+    // Initialize in-memory queue facade
     await initQueues();
 
     // Initialize WebSocket on HTTP server
