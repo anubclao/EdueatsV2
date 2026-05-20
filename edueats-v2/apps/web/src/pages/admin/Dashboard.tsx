@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { db } from '../../services/db';
 import { Order, Recipe, CategoryDef, OrderItem } from '../../types';
+import { isNoSelectionRecipeId } from '../../utils/orderSelection';
 import { Download, Filter, Users, ChefHat, ClipboardList, Utensils, PlusCircle, Calendar } from 'lucide-react';
 import { exportOrdersToExcel } from '../../utils/excel';
 
@@ -59,7 +60,7 @@ export const Dashboard = () => {
   const getRecipeCount = (categoryId: string) => {
     const counts: Record<string, number> = {};
     filteredOrders.forEach(order => {
-      const item = order.items.find(i => i.category === categoryId);
+      const item = order.items.find(i => i.category === categoryId && !isNoSelectionRecipeId(i.recipeId));
       if (item) {
         counts[item.recipeId] = (counts[item.recipeId] || 0) + 1;
       }
@@ -79,7 +80,7 @@ export const Dashboard = () => {
     
     const catCounts: Record<string, number> = {};
     categories.forEach(cat => {
-        catCounts[cat.id] = gradeOrders.filter(o => o.items.some(i => i.category === cat.id)).length;
+      catCounts[cat.id] = gradeOrders.filter(o => o.items.some(i => i.category === cat.id && !isNoSelectionRecipeId(i.recipeId))).length;
     });
 
     return {
@@ -206,7 +207,7 @@ export const Dashboard = () => {
       // Assuming 'main' is the key or searching for category with 'main' in id/name
       // Better: Count total items of the category with name "Plato Fuerte" or id 'main'
       const mainCat = categories.find(c => c.id.includes('main') || c.name.toLowerCase().includes('fuerte'));
-      if (mainCat && order.items.some(i => i.category === mainCat.id)) return acc + 1;
+      if (mainCat && order.items.some(i => i.category === mainCat.id && !isNoSelectionRecipeId(i.recipeId))) return acc + 1;
       return acc;
   }, 0);
 

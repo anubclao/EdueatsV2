@@ -3,9 +3,10 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../services/db';
 import { onRealtime } from '../../services/realtime';
+import { isNoSelectionRecipeId } from '../../utils/orderSelection';
 
-import { Order, Recipe, RecurringPreference, SystemNotification, UnconfirmedMenuReportItem, DailyMenuConfig, CategoryDef } from '../../types';
-import { CheckCircle, Circle, ChevronRight, History, Calendar, Clock, X, User as UserIcon, Mail, Shield, Star, Trash2, AlertTriangle, Sparkles, PartyPopper, Activity, FileDown } from 'lucide-react';
+import { Order, Recipe, SystemNotification, UnconfirmedMenuReportItem, DailyMenuConfig, CategoryDef } from '../../types';
+import { CheckCircle, Circle, ChevronRight, History, Calendar, Clock, X, User as UserIcon, Mail, Shield, Star, AlertTriangle, Sparkles, PartyPopper, Activity, FileDown } from 'lucide-react';
 
 const StudentCaloriesChart = lazy(() => import('../../components/charts/StudentCaloriesChart'));
 
@@ -17,7 +18,7 @@ export const StudentDashboard = () => {
   const [schoolName, setSchoolName] = useState('Cargando...');
   
   // Default tab logic: Check URL query params
-  const [activeTab, setActiveTab] = useState<'planner' | 'history' | 'unconfirmed-orders' | 'favorites' | 'nutrition' | 'reports'>('planner');
+  const [activeTab, setActiveTab] = useState<'planner' | 'history' | 'unconfirmed-orders' | 'nutrition' | 'reports'>('planner');
   
   // Reminder State
   const [showReminder, setShowReminder] = useState(false);
@@ -26,9 +27,6 @@ export const StudentDashboard = () => {
   // Available dates with menus
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   
-  // Favorites
-  const [preferences, setPreferences] = useState<RecurringPreference[]>([]);
-
   // All menus and categories (fetched async)
   const [allMenus, setAllMenus] = useState<DailyMenuConfig[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
@@ -113,11 +111,6 @@ export const StudentDashboard = () => {
       setOrders(normalizedOrders);
       setAllMenus(normalizedMenus);
       setCategories(catsData);
-
-      if (user) {
-        const prefs = await db.getPreferences(user.id);
-        setPreferences(prefs);
-      }
 
       const schoolVar = globalVars.find(v => v.id === 'schoolName');
       if (schoolVar) setSchoolName(schoolVar.value);
@@ -213,34 +206,21 @@ export const StudentDashboard = () => {
     return 'pending';
   };
 
-  const getRecipeName = (id: string) => recipes.find(r => r.id === id)?.name || 'Opción seleccionada';
+  const getRecipeName = (id: string) => {
+    if (isNoSelectionRecipeId(id)) return 'No eligió plato en esta categoría';
+    return recipes.find(r => r.id === id)?.name || 'Opción seleccionada';
+  };
   const getCategoryName = (categoryId: string) => categories.find(c => c.id === categoryId)?.name || 'Categoría';
-
-  const deletePreference = async (dayOfWeek: number) => {
-    if (confirm('¿Deseas eliminar este menú favorito?')) {
-      if (user) {
-        await db.deletePreference(user.id, dayOfWeek);
-        const prefs = await db.getPreferences(user.id);
-        setPreferences(prefs);
-      }
+  const getRoleDisplay = (role: string) => {
+    switch(role) {
+      case 'student': return 'Estudiante';
+      case 'admin': return 'Administrador';
+      default: return 'Usuario';
     }
   };
 
   const historyOrders = orders
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  const getRoleDisplay = (role: string) => {
-     switch(role) {
-         case 'student': return 'Estudiante';
-         case 'admin': return 'Administrador';
-         default: return 'Usuario';
-     }
-  };
-
-  const getDayName = (dayIndex: number) => {
-    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-    return days[dayIndex];
-  };
 
   // --- STATS CALCULATION (Local) ---
   const statsData = useMemo(() => {
@@ -515,7 +495,7 @@ export const StudentDashboard = () => {
               </div>
               <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 p-4 border border-amber-100 dark:border-amber-800">
                 <p className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-300">Vista recomendada</p>
-                <p className="mt-2 text-sm font-bold text-amber-700 dark:text-amber-200">Abre la pestaña Nutrición para ver la gráfica detallada.</p>
+                <p className="mt-2 text-sm font-bold text-amber-700 dark:text-amber-200">Esta es una guía y no reemplaza las indicaciones de su medico personal o de su nutricionista.</p>
               </div>
             </div>
             <p className="text-[10px] text-center text-gray-400 mt-4 font-medium">
@@ -533,8 +513,8 @@ export const StudentDashboard = () => {
             {activeTab === 'planner' ? 'Menús disponibles para ordenar' : 
              activeTab === 'history' ? 'Tus pedidos confirmados' : 
              activeTab === 'unconfirmed-orders' ? 'Menús pasados sin pedido' : 
-             activeTab === 'nutrition' ? 'Análisis de Inteligencia Artificial' : 
-             'Tus días con menú automático'}
+             activeTab === 'nutrition' ? 'Análisis de Inteligencia Artificial' :
+             'Reportes de tus pedidos'}
           </p>
         </div>
 
@@ -543,7 +523,6 @@ export const StudentDashboard = () => {
           <button onClick={() => setActiveTab('history')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'history' ? 'bg-white dark:bg-gray-700 text-primary shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}><History size={16} /> Historial</button>
           <button onClick={() => setActiveTab('unconfirmed-orders')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'unconfirmed-orders' ? 'bg-white dark:bg-gray-700 text-primary shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}><AlertTriangle size={16} /> Pedidos No Confirmados</button>
           <button onClick={() => setActiveTab('nutrition')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'nutrition' ? 'bg-white dark:bg-gray-700 text-primary shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}><Activity size={16} /> Nutrición</button>
-          <button onClick={() => setActiveTab('favorites')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'favorites' ? 'bg-white dark:bg-gray-700 text-primary shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}><Star size={16} /> Favoritos</button>
           <button onClick={() => setActiveTab('reports')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'reports' ? 'bg-white dark:bg-gray-700 text-primary shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}><FileDown size={16} /> Reportes</button>
         </div>
       </div>
@@ -634,11 +613,11 @@ export const StudentDashboard = () => {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                       {order.items.map((item) => (
-                        <div key={item.recipeId} className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm">
+                        <div key={`${order.id}-${item.category}`} className={`p-3 rounded-lg border shadow-sm ${isNoSelectionRecipeId(item.recipeId) ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800' : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700'}`}>
                           <p className="text-xs font-semibold text-gray-400 uppercase mb-1">
                             {getCategoryName(item.category)}
                           </p>
-                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 line-clamp-1" title={getRecipeName(item.recipeId)}>
+                          <p className={`text-sm font-medium line-clamp-2 ${isNoSelectionRecipeId(item.recipeId) ? 'text-amber-700 dark:text-amber-300' : 'text-gray-800 dark:text-gray-200'}`} title={getRecipeName(item.recipeId)}>
                             {getRecipeName(item.recipeId)}
                           </p>
                         </div>
@@ -769,35 +748,6 @@ export const StudentDashboard = () => {
                     <p className="text-gray-400 mt-2">Realiza pedidos en este rango de fechas para ver tu reporte nutricional.</p>
                 </div>
             )}
-        </div>
-      )}
-
-      {activeTab === 'favorites' && (
-        <div className="space-y-6">
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800 rounded-xl p-4 text-sm text-yellow-800 dark:text-yellow-200 flex gap-3">
-                <Star className="shrink-0" size={20} />
-                <p>Cuando guardas un menú como favorito para un día (ej. Lunes), el sistema intentará seleccionarlo automáticamente la próxima vez que ordenes para ese día de la semana.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {preferences.length > 0 ? preferences.map((pref) => (
-                    <div key={pref.dayOfWeek} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">{getDayName(pref.dayOfWeek)} <Star className="fill-yellow-400 text-yellow-400" size={16} /></h3>
-                            <button onClick={() => deletePreference(pref.dayOfWeek)} className="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors"><Trash2 size={18} /></button>
-                        </div>
-                        <div className="space-y-2">
-                            {pref.items.map((item, idx) => (
-                                <div key={idx} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300"><span className="w-2 h-2 rounded-full bg-primary/50"></span><span>{getRecipeName(item.recipeId)}</span></div>
-                            ))}
-                        </div>
-                    </div>
-                )) : (
-                    <div className="col-span-full text-center py-12 text-gray-400">
-                        <Star size={48} className="mx-auto mb-4 opacity-30" />
-                        <p>No tienes menús favoritos guardados.</p>
-                    </div>
-                )}
-            </div>
         </div>
       )}
 

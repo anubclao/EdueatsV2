@@ -1,8 +1,10 @@
 import type ExcelJS from 'exceljs';
 import { CategoryDef, Order, Recipe, User } from "../types";
+import { isNoSelectionRecipeId } from './orderSelection';
 
 // --- Helper Functions ---
-const getRecipeName = (id: string, recipes: Recipe[]) => recipes.find(r => r.id === id)?.name || 'No seleccionado';
+const getRecipeName = (id: string, recipes: Recipe[]) =>
+  isNoSelectionRecipeId(id) ? 'No eligió plato en esta categoría' : (recipes.find(r => r.id === id)?.name || 'No seleccionado');
 
 const translateCategory = (cat: string) => {
   const map: Record<string, string> = {
@@ -35,6 +37,7 @@ export const exportOrdersToExcel = async (orders: Order[], recipes: Recipe[], fi
   const recipeCounts: Record<string, number> = {};
   validOrders.forEach(order => {
     order.items.forEach(item => {
+      if (isNoSelectionRecipeId(item.recipeId)) return;
       const key = `${item.category}|${item.recipeId}`;
       recipeCounts[key] = (recipeCounts[key] || 0) + 1;
     });
@@ -162,6 +165,7 @@ export const generateAdvancedReport = async (
   const dishCounts: Record<string, number> = {};
   orders.forEach(o => {
     o.items.forEach(i => {
+      if (isNoSelectionRecipeId(i.recipeId)) return;
       const name = getRecipeName(i.recipeId, recipes);
       dishCounts[name] = (dishCounts[name] || 0) + 1;
     });
@@ -219,6 +223,7 @@ export const exportConsolidatedOrdersByUserRange = async (
   const kitchenCounts: Record<string, number> = {};
   validOrders.forEach(order => {
     order.items.forEach(item => {
+      if (isNoSelectionRecipeId(item.recipeId)) return;
       const key = `${item.category}|${item.recipeId}`;
       kitchenCounts[key] = (kitchenCounts[key] || 0) + 1;
     });
@@ -262,6 +267,7 @@ export const exportConsolidatedOrdersByUserRange = async (
     const userRow = userMap.get(userId)!;
     userRow.totalOrders += 1;
     order.items.forEach(item => {
+      if (isNoSelectionRecipeId(item.recipeId)) return;
       userRow.categoryCounts[item.category] = (userRow.categoryCounts[item.category] || 0) + 1;
     });
   });

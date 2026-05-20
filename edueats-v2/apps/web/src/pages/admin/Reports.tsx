@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useMemo } from 'react';
 import { db } from '../../services/db';
 import { Order, User, Recipe, DailyMenuConfig, GeneratedReport } from '../../types';
+import { isNoSelectionRecipeId } from '../../utils/orderSelection';
 import { Download, Calendar, AlertCircle, TrendingUp } from 'lucide-react';
 
 const AdminOrdersChart = lazy(() => import('../../components/charts/AdminOrdersChart'));
@@ -94,7 +95,7 @@ export const Reports = () => {
      filteredOrders.forEach(o => {
          // Assuming main dish is vital
          const main = o.items.find(i => i.category.includes('main'))?.recipeId;
-         if (main) {
+         if (main && !isNoSelectionRecipeId(main)) {
              const name = recipes.find(r => r.id === main)?.name || 'Desconocido';
              counts[name] = (counts[name] || 0) + 1;
          }

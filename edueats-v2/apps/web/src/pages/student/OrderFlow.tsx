@@ -4,7 +4,8 @@ import { db } from '../../services/db';
 import { useAuth } from '../../context/AuthContext';
 import { joinOrderRoom } from '../../services/realtime';
 import { DailyMenuConfig, Recipe, CategoryDef, CategoryRule, OrderItem, Order } from '../../types';
-import { ArrowLeft, ArrowRight, Check, AlertTriangle, Utensils, Apple, Coffee, Soup, CircleDashed, Lock, X, Edit2, CheckCircle2, Star, Sparkles, Leaf } from 'lucide-react';
+import { makeNoSelectionRecipeId, isNoSelectionRecipeId } from '../../utils/orderSelection';
+import { ArrowLeft, ArrowRight, Check, AlertTriangle, Utensils, Apple, Coffee, Soup, CircleDashed, Lock, Edit2, CheckCircle2, Leaf } from 'lucide-react';
 
 // --- Helpers ---
 const getCategoryIcon = (catId: string, size = 24) => {
@@ -45,12 +46,6 @@ const getRecipeEmoji = (recipe: Recipe): string => {
   if (cat.includes('snack')) return name.includes('jugo') ? '🧃' : '🍪';
   
   return '🍽️';
-};
-
-const getDayName = (dateStr: string) => {
-  const date = new Date(dateStr + 'T00:00:00');
-  const dayNameRaw = date.toLocaleDateString('es-ES', { weekday: 'long' });
-  return dayNameRaw.charAt(0).toUpperCase() + dayNameRaw.slice(1);
 };
 
 interface ItemProps {
@@ -180,10 +175,6 @@ export const OrderFlow = () => {
   
   // Confirmation Modal State
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [saveAsPreference, setSaveAsPreference] = useState(false);
-
-  // Preference Auto-fill notification
-  const [autoFilled, setAutoFilled] = useState(false);
 
   // Loading state to distinguish "loading" from "menu not found"
   const [isLoaded, setIsLoaded] = useState(false);
@@ -224,7 +215,7 @@ export const OrderFlow = () => {
       if (existing) {
         const loadedSelections: Record<string, string | null> = {};
         existing.items.forEach(item => {
-          loadedSelections[item.category] = item.recipeId;
+          loadedSelections[item.category] = isNoSelectionRecipeId(item.recipeId) ? null : item.recipeId;
         });
         setSelections(loadedSelections);
 
@@ -235,32 +226,6 @@ export const OrderFlow = () => {
       } else if (isPastOrToday) {
         // No order exists, but date is passed. Lock it.
         setIsReadOnly(true);
-      } else if (user && config) {
-        // --- AUTO-FILL LOGIC ---
-        const dayOfWeek = new Date(date + 'T00:00:00').getDay();
-        const preferences = await db.getPreferences(user.id);
-        const dayPref = preferences.find(p => p.dayOfWeek === dayOfWeek);
-
-        if (dayPref) {
-          const newSelections: Record<string, string | null> = {};
-          let matchCount = 0;
-
-          dayPref.items.forEach(prefItem => {
-            // Check if preferred item is in today's menu
-            const isAvailable = config.items.some(menuItem => menuItem.recipeId === prefItem.recipeId);
-            if (isAvailable) {
-              newSelections[prefItem.category] = prefItem.recipeId;
-              matchCount++;
-            }
-          });
-
-          if (matchCount > 0) {
-            setSelections(newSelections);
-            setAutoFilled(true);
-            // Auto hide the toast after 5s
-            setTimeout(() => setAutoFilled(false), 5000);
-          }
-        }
       }
     };
 
@@ -302,6 +267,13 @@ export const OrderFlow = () => {
       return null;
   }
 
+  const menuCategoryIds = new Set(
+    menuConfig.items
+      .map(item => recipes.find(r => r.id === item.recipeId)?.category)
+      .filter((cat): cat is string => !!cat)
+  );
+  const categoriesInMenu = categories.filter(cat => menuCategoryIds.has(cat.id));
+
   // --- Logic for Confirmed Order Summary (Read Only View) ---
   if (isReadOnly && existingOrder) {
       return (
@@ -319,9 +291,19 @@ export const OrderFlow = () => {
                 </div>
 
                 <div className="space-y-4">
-                    {categories.map(cat => {
+                  {categoriesInMenu.map(cat => {
                         const selectedId = selections[cat.id];
-                        if (!selectedId) return null;
+                        if (!selectedId) {
+                          return (
+                            <div key={cat.id} className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-amber-100 dark:border-amber-800 flex items-center">
+                                <div className={`w-2 self-stretch ${getCategoryColorClass(cat.id)}`} />
+                                <div className="p-4 flex-1">
+                                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">{cat.name}</p>
+                                  <p className="font-semibold text-amber-700 dark:text-amber-300 text-sm">No eligió plato en esta categoría.</p>
+                                </div>
+                            </div>
+                          );
+                        }
                         const recipe = recipes.find(r => r.id === selectedId);
                         if (!recipe) return null;
                         
@@ -415,6 +397,13 @@ export const OrderFlow = () => {
   // Active steps for progress bar
   const activeCategories = categories.filter(c => isCatAvailable(c.id, selections));
   const activeStepPos = activeCategories.findIndex(c => c.id === currentCategory.id);
+  const mandatoryCategories = new Set(
+    menuConfig.items
+      .filter(item => item.isMandatory)
+      .map(item => recipes.find(r => r.id === item.recipeId)?.category)
+      .filter((cat): cat is string => !!cat)
+  );
+  const isCurrentCategoryMandatory = mandatoryCategories.has(currentCategory.id);
 
   // Dedicated visual process for protein categories (e.g., Proteina 1 / Proteina 2)
   const proteinSteps = activeCategories.filter(c => {
@@ -471,9 +460,16 @@ export const OrderFlow = () => {
     if (!user || !date) return;
     const orderId = existingOrder ? existingOrder.id : crypto.randomUUID();
 
-    const orderItems: OrderItem[] = Object.entries(selections)
-      .filter(([_category, id]) => { console.log(_category); return id !== null; })
+    const selectedItems: OrderItem[] = Object.entries(selections)
+      .filter(([_category, id]) => id !== null)
       .map(([cat, id]) => ({ category: cat, recipeId: id as string }));
+
+    const omittedItems: OrderItem[] = activeCategories
+      .filter(cat => menuCategoryIds.has(cat.id))
+      .filter(cat => !selections[cat.id])
+      .map(cat => ({ category: cat.id, recipeId: makeNoSelectionRecipeId(cat.id) }));
+
+    const orderItems: OrderItem[] = [...selectedItems, ...omittedItems];
 
     // Submit Order
     await db.submitOrder({
@@ -491,18 +487,6 @@ export const OrderFlow = () => {
 
     joinOrderRoom(orderId);
 
-    // Save Preference if checked
-    if (saveAsPreference) {
-        const dayOfWeek = new Date(date + 'T00:00:00').getDay();
-        const prefItems = orderItems.map(i => ({ category: i.category, recipeId: i.recipeId }));
-        
-        await db.savePreference({
-            studentId: user.id,
-            dayOfWeek,
-            items: prefItems
-        });
-    }
-
     // Refresh view will trigger the Read Only summary or redirect
     navigate('/student/dashboard?tab=history');
   };
@@ -510,8 +494,8 @@ export const OrderFlow = () => {
   const progress = ((activeStepPos + 1) / Math.max(activeCategories.length, 1)) * 100;
   
   // Logic for Next Button state:
-  // - Veg Step: Always enabled (Optional)
-  // - Others: Must select unless empty options
+  // - Mandatory categories: must select
+  // - Optional categories: can continue without selection
   
   // For a mutual-block step: if the sibling category already has a selection, this step is optional
   const mutualBlockSiblingSelected = rules.some(r =>
@@ -521,9 +505,9 @@ export const OrderFlow = () => {
     isMutualBlock(r.triggerCategoryId, currentCategory.id)
   );
 
-  let isNextDisabled = !selections[currentCategory.id]; 
+  let isNextDisabled = isCurrentCategoryMandatory && !selections[currentCategory.id]; 
   
-  if (isVegStep) isNextDisabled = false; // Always allow moving forward on optional step
+  if (isVegStep && !isCurrentCategoryMandatory) isNextDisabled = false;
   if (mutualBlockSiblingSelected) isNextDisabled = false; // Sibling already chosen — this step is optional
   if (availableRecipes.length === 0) isNextDisabled = false;
 
@@ -532,18 +516,6 @@ export const OrderFlow = () => {
 
   return (
     <div className="max-w-5xl mx-auto dark:text-white">
-      {/* Auto-fill Toast */}
-      {autoFilled && (
-        <div className="fixed top-20 right-4 md:right-8 z-50 bg-yellow-50 dark:bg-yellow-900/80 border border-yellow-200 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200 px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in slide-in-from-right duration-500">
-            <Sparkles className="text-yellow-500" size={20} />
-            <div>
-                <p className="font-bold text-sm">¡Favoritos aplicados!</p>
-                <p className="text-xs">Hemos pre-seleccionado tu menú recurrente.</p>
-            </div>
-            <button onClick={() => setAutoFilled(false)} className="ml-2 hover:bg-yellow-100 dark:hover:bg-yellow-800 p-1 rounded-full"><X size={14} /></button>
-        </div>
-      )}
-
       {/* Header */}
       <div className={`
         p-4 md:p-6 rounded-b-3xl md:rounded-3xl text-white mb-6 shadow-lg transition-colors sticky top-0 md:top-2 z-40
@@ -649,8 +621,8 @@ export const OrderFlow = () => {
           return null;
         })()}
 
-        {/* Info Box for Vegetarian Step */}
-        {isVegStep && (
+        {/* Info Box for Optional Vegetarian Step */}
+        {isVegStep && !isCurrentCategoryMandatory && (
           <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 rounded-xl text-center shadow-sm border border-green-100 dark:border-green-800">
             <p className="font-medium text-sm md:text-base">
               <strong>Opción alternativa:</strong> esta categoría es opcional dentro del flujo.
@@ -722,13 +694,23 @@ export const OrderFlow = () => {
               </div>
               <h3 className="text-2xl font-black text-gray-800 dark:text-white">Confirma tu Pedido</h3>
               <p className="text-gray-500 dark:text-gray-300 text-sm">Revisa tus elecciones antes de enviar.</p>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 font-medium">Si dejas una categoría sin elegir, se guardará como anotación en tu historial de confirmados.</p>
             </div>
 
             <div className="p-6 space-y-4 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50">
-              {categories.map(cat => {
+              {categoriesInMenu.map(cat => {
                 const selectedId = selections[cat.id];
-                // Don't show empty categories in confirmation if they are optional or skipped
-                if (!selectedId) return null;
+                if (!selectedId) {
+                  return (
+                    <div key={cat.id} className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-amber-100 dark:border-amber-800 flex items-center group hover:shadow-md transition-all">
+                       <div className={`w-2 self-stretch ${getCategoryColorClass(cat.id)}`} />
+                       <div className="p-4 flex-1">
+                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{cat.name}</p>
+                         <p className="font-semibold text-amber-700 dark:text-amber-300 text-sm">No eligió plato en esta categoría.</p>
+                       </div>
+                    </div>
+                  );
+                }
 
                 const recipe = recipes.find(r => r.id === selectedId);
                 if (!recipe) return null;
@@ -764,27 +746,6 @@ export const OrderFlow = () => {
                 )
               })}
             </div>
-
-            {/* Save Preference Checkbox */}
-            {date && (
-               <div className="px-6 py-4 bg-yellow-50 dark:bg-yellow-900/20 border-t border-b border-yellow-100 dark:border-yellow-800 flex-shrink-0">
-                  <label className="flex items-start gap-3 cursor-pointer group">
-                      <div className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center transition-colors ${saveAsPreference ? 'bg-yellow-500 border-yellow-500' : 'bg-white border-gray-300 dark:bg-gray-700 dark:border-gray-600'}`}>
-                          {saveAsPreference && <Check size={14} className="text-white" />}
-                          <input type="checkbox" className="hidden" checked={saveAsPreference} onChange={e => setSaveAsPreference(e.target.checked)} />
-                      </div>
-                      <div className="flex-1">
-                          <div className="flex items-center gap-2 font-bold text-gray-800 dark:text-yellow-100">
-                             <Star size={16} className={saveAsPreference ? 'fill-yellow-500 text-yellow-500' : 'text-gray-400'} />
-                             Guardar como favorito
-                          </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                             Si marcas esto, EduEats pre-seleccionará este menú automáticamente cada <strong>{getDayName(date)}</strong>.
-                          </p>
-                      </div>
-                  </label>
-               </div>
-            )}
 
             <div className="p-6 pt-2 grid grid-cols-2 gap-3 bg-white dark:bg-gray-800 z-10 relative flex-shrink-0">
                <button 
