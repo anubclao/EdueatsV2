@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import pool from '../db/pool.js';
 import { requireAuth, requireRoles } from '../middleware/auth.js';
 import { getCachedRecipes, invalidateRecipesCache } from '../services/cache-helpers.js';
+import { getSchoolId } from '../services/tenant.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const imagesRoot = path.join(__dirname, '..', '..', '..', '..', '..', 'images');
@@ -46,23 +47,26 @@ recipesRouter.post('/upload-image', requireAuth, requireRoles('admin'), upload.s
   res.json({ imageUrl: `/images/${category}/${req.file.filename}` });
 });
 
-recipesRouter.get('/', requireAuth, async (_req, res) => {
+recipesRouter.get('/', requireAuth, async (req, res) => {
+  const schoolId = getSchoolId(req);
   try {
     const rows = await getCachedRecipes(() =>
-      pool.query(
-        'SELECT id, name, description, category, calories, image_url as imageUrl FROM recipes'
-      ).then(result => result[0])
+      pool.execute(
+        'SELECT id, name, description, category, calories, image_url as imageUrl FROM recipes WHERE school_id = ?',
+        [schoolId]
+      ).then(result => (result as any[])[0])
     );
     res.json(rows);
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 recipesRouter.post('/', requireAuth, requireRoles('admin'), async (req, res) => {
+  const schoolId = getSchoolId(req);
   const { id, name, description, category, calories, imageUrl } = req.body;
   try {
     await pool.execute(
-      'INSERT INTO recipes (id, name, description, category, calories, image_url) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, name, description, category, calories, imageUrl || null]
+      'INSERT INTO recipes (id, name, description, category, calories, image_url, school_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, name, description, category, calories, imageUrl || null, schoolId]
     );
     await invalidateRecipesCache();
     res.json({ success: true });
@@ -70,11 +74,12 @@ recipesRouter.post('/', requireAuth, requireRoles('admin'), async (req, res) => 
 });
 
 recipesRouter.put('/:id', requireAuth, requireRoles('admin'), async (req, res) => {
+  const schoolId = getSchoolId(req);
   const { name, description, category, calories, imageUrl } = req.body;
   try {
     await pool.execute(
-      'UPDATE recipes SET name=?, description=?, category=?, calories=?, image_url=? WHERE id=?',
-      [name, description, category, calories, imageUrl || null, req.params.id]
+      'UPDATE recipes SET name=?, description=?, category=?, calories=?, image_url=? WHERE id=? AND school_id=?',
+      [name, description, category, calories, imageUrl || null, req.params.id, schoolId]
     );
     await invalidateRecipesCache();
     res.json({ success: true });
@@ -82,8 +87,9 @@ recipesRouter.put('/:id', requireAuth, requireRoles('admin'), async (req, res) =
 });
 
 recipesRouter.delete('/:id', requireAuth, requireRoles('admin'), async (req, res) => {
+  const schoolId = getSchoolId(req);
   try {
-    await pool.execute('DELETE FROM recipes WHERE id=?', [req.params.id]);
+    await pool.execute('DELETE FROM recipes WHERE id=? AND school_id=?', [req.params.id, schoolId]);
     await invalidateRecipesCache();
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
