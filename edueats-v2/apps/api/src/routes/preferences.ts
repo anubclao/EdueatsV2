@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
+import { getSchoolId } from '../services/tenant.js';
 
 export const preferencesRouter = Router();
 
 preferencesRouter.get('/:studentId', requireAuth, async (req, res) => {
+  const schoolId = getSchoolId(req);
   // Los estudiantes solo pueden ver sus propias preferencias recurrentes.
-  // admin/staff/teacher/visitor pueden ver cualquiera.
+  // admin/staff/teacher/visitor pueden ver cualquiera DENTRO de su colegio.
   if (req.authUser?.role === 'student' && req.authUser.id !== req.params.studentId) {
     return res.status(403).json({ error: 'Sin permisos' });
   }
@@ -17,7 +19,7 @@ preferencesRouter.get('/:studentId', requireAuth, async (req, res) => {
       FROM recurring_preferences rp
       LEFT JOIN recurring_preference_items rpi
         ON rp.student_id=rpi.student_id AND rp.day_of_week=rpi.day_of_week
-      WHERE rp.student_id=?`, [req.params.studentId]) as any[];
+      WHERE rp.student_id=? AND rp.school_id=?`, [req.params.studentId, schoolId]) as any[];
 
     const map: Record<string, any> = {};
     for (const r of rows) {
@@ -30,16 +32,17 @@ preferencesRouter.get('/:studentId', requireAuth, async (req, res) => {
 });
 
 preferencesRouter.post('/', requireAuth, async (req, res) => {
+  const schoolId = getSchoolId(req);
   const { studentId, dayOfWeek, items } = req.body;
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    await conn.execute('DELETE FROM recurring_preferences WHERE student_id=? AND day_of_week=?', [studentId, dayOfWeek]);
-    await conn.execute('INSERT INTO recurring_preferences (student_id, day_of_week) VALUES (?, ?)', [studentId, dayOfWeek]);
+    await conn.execute('DELETE FROM recurring_preferences WHERE student_id=? AND day_of_week=? AND school_id=?', [studentId, dayOfWeek, schoolId]);
+    await conn.execute('INSERT INTO recurring_preferences (student_id, day_of_week, school_id) VALUES (?, ?, ?)', [studentId, dayOfWeek, schoolId]);
     for (const item of (items ?? [])) {
       await conn.execute(
-        'INSERT INTO recurring_preference_items (student_id, day_of_week, category, recipe_id) VALUES (?, ?, ?, ?)',
-        [studentId, dayOfWeek, item.category, item.recipeId]
+        'INSERT INTO recurring_preference_items (student_id, day_of_week, category, recipe_id, school_id) VALUES (?, ?, ?, ?, ?)',
+        [studentId, dayOfWeek, item.category, item.recipeId, schoolId]
       );
     }
     await conn.commit();
@@ -51,12 +54,13 @@ preferencesRouter.post('/', requireAuth, async (req, res) => {
 });
 
 preferencesRouter.delete('/:studentId/:dayOfWeek', requireAuth, async (req, res) => {
+  const schoolId = getSchoolId(req);
   if (req.authUser?.role === 'student' && req.authUser.id !== req.params.studentId) {
     return res.status(403).json({ error: 'Sin permisos' });
   }
   try {
-    await pool.execute('DELETE FROM recurring_preferences WHERE student_id=? AND day_of_week=?',
-      [req.params.studentId, req.params.dayOfWeek]);
+    await pool.execute('DELETE FROM recurring_preferences WHERE student_id=? AND day_of_week=? AND school_id=?',
+      [req.params.studentId, req.params.dayOfWeek, schoolId]);
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });

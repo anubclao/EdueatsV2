@@ -4,6 +4,7 @@ import pool from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { enqueueEmail, enqueueNotification } from '../services/queue.js';
 import { notifyAdmins, notifyOrder, notifyUser } from '../services/websocket.js';
+import { getSchoolId } from '../services/tenant.js';
 
 export const ordersRouter = Router();
 ordersRouter.use(requireAuth);
@@ -47,8 +48,13 @@ function toMysqlDateTime(value: any): string | null {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-async function fetchOrders(studentId?: string) {
-  const whereClause = studentId ? 'WHERE o.student_id = ?' : '';
+async function fetchOrders(schoolId: string, studentId?: string) {
+  // Estudiantes: solo sus pedidos. Admin: todos los del colegio.
+  // Como ya validamos role arriba, podemos componer WHERE seguro.
+  const params: any[] = [schoolId];
+  let where = 'WHERE o.school_id = ?';
+  if (studentId) { where += ' AND o.student_id = ?'; params.push(studentId); }
+
   const [rows] = await pool.query(`
     SELECT o.id, o.student_id as studentId, o.student_name as studentName,
            o.student_grade as studentGrade, o.student_section as studentSection,
@@ -56,8 +62,8 @@ async function fetchOrders(studentId?: string) {
            oi.category, oi.recipe_id as recipeId
     FROM orders o
     LEFT JOIN order_items oi ON o.id = oi.order_id
-    ${whereClause}
-    ORDER BY o.timestamp DESC`, studentId ? [studentId] : []) as any[];
+    ${where}
+    ORDER BY o.timestamp DESC`, params) as any[];
 
   const map: Record<string, any> = {};
   for (const r of rows) {
@@ -75,38 +81,45 @@ async function fetchOrders(studentId?: string) {
 }
 
 ordersRouter.get('/', async (req, res) => {
+  const schoolId = getSchoolId(req);
   try {
     const isAdmin = req.authUser?.role === 'admin';
-    res.json(await fetchOrders(isAdmin ? undefined : req.authUser!.id));
+    res.json(await fetchOrders(schoolId, isAdmin ? undefined : req.authUser!.id));
   }
   catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 ordersRouter.get('/count-by-date/:date', async (req, res) => {
+  const schoolId = getSchoolId(req);
   try {
     const isAdmin = req.authUser?.role === 'admin';
     const [[row]] = isAdmin
-      ? await pool.execute('SELECT COUNT(*) as count FROM orders WHERE date=?', [req.params.date]) as any[]
-      : await pool.execute('SELECT COUNT(*) as count FROM orders WHERE date=? AND student_id=?', [req.params.date, req.authUser!.id]) as any[];
+      ? await pool.execute('SELECT COUNT(*) as count FROM orders WHERE date=? AND school_id=?', [req.params.date, schoolId]) as any[]
+      : await pool.execute('SELECT COUNT(*) as count FROM orders WHERE date=? AND student_id=? AND school_id=?', [req.params.date, req.authUser!.id, schoolId]) as any[];
     res.json({ count: Number(row.count) });
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 async function insertOrder(conn: any, o: any) {
-  const { id, studentId, studentName, studentGrade, studentSection, studentAllergies, date, items, status, timestamp } = o;
+  const { id, studentId, studentName, studentGrade, studentSection, studentAllergies, date, items, status, timestamp, schoolId } = o;
   const orderTimestamp = toMysqlDateTime(timestamp);
-  const [existing] = await conn.execute('SELECT id FROM orders WHERE student_id=? AND date=?', [studentId, date]) as any[];
-  if (existing.length) await conn.execute('DELETE FROM orders WHERE student_id=? AND date=?', [studentId, date]);
+  // Cleanup previo scoped al colegio (no del cliente — previene cross-tenant collisions).
+  const [existing] = await conn.execute('SELECT id FROM orders WHERE student_id=? AND date=? AND school_id=?', [studentId, date, schoolId]) as any[];
+  if (existing.length) await conn.execute('DELETE FROM orders WHERE student_id=? AND date=? AND school_id=?', [studentId, date, schoolId]);
   await conn.execute(
-    'INSERT INTO orders (id, student_id, student_name, student_grade, student_section, student_allergies, date, status, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [id, studentId, studentName, studentGrade ?? null, studentSection ?? null, studentAllergies ?? null, date, status, orderTimestamp]
+    'INSERT INTO orders (id, student_id, student_name, student_grade, student_section, student_allergies, date, status, timestamp, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, studentId, studentName, studentGrade ?? null, studentSection ?? null, studentAllergies ?? null, date, status, orderTimestamp, schoolId]
   );
   for (const item of (items ?? [])) {
-    await conn.execute('INSERT INTO order_items (order_id, category, recipe_id) VALUES (?, ?, ?)', [id, item.category, item.recipeId]);
+    await conn.execute(
+      'INSERT INTO order_items (order_id, category, recipe_id, school_id) VALUES (?, ?, ?, ?)',
+      [id, item.category, item.recipeId, schoolId]
+    );
   }
 }
 
 ordersRouter.post('/', async (req, res) => {
+  const schoolId = getSchoolId(req);
   const parsed = orderCreateSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Datos de pedido inválidos.', details: parsed.error.flatten() });
@@ -125,7 +138,7 @@ ordersRouter.post('/', async (req, res) => {
       order.studentAllergies = undefined;
     }
     await conn.beginTransaction();
-    await insertOrder(conn, order);
+    await insertOrder(conn, { ...order, schoolId });
     await conn.commit();
 
     void enqueueNotification('order-placed', {
@@ -175,6 +188,7 @@ ordersRouter.post('/', async (req, res) => {
 });
 
 ordersRouter.post('/batch', async (req, res) => {
+  const schoolId = getSchoolId(req);
   if (req.authUser?.role !== 'admin') return res.status(403).json({ error: 'Sin permisos' });
 
   const input = Array.isArray(req.body) ? req.body : req.body.orders;
@@ -187,7 +201,7 @@ ordersRouter.post('/batch', async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    for (const o of orders) await insertOrder(conn, o);
+    for (const o of orders) await insertOrder(conn, { ...o, schoolId });
     await conn.commit();
 
     for (const o of orders) {
@@ -225,9 +239,10 @@ ordersRouter.post('/batch', async (req, res) => {
 });
 
 ordersRouter.delete('/:id', async (req, res) => {
+  const schoolId = getSchoolId(req);
   try {
     if (req.authUser?.role !== 'admin') return res.status(403).json({ error: 'Sin permisos' });
-    await pool.execute('DELETE FROM orders WHERE id=?', [req.params.id]);
+    await pool.execute('DELETE FROM orders WHERE id=? AND school_id=?', [req.params.id, schoolId]);
 
     void enqueueNotification('custom', {
       userId: req.authUser.id,
