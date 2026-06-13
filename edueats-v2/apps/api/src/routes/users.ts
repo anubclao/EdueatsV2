@@ -28,7 +28,7 @@ usersRouter.get('/', requireAuth, requireRoles('admin'), async (_req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM users') as any[];
     res.json(rows.map(mapUser));
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 // GET /email/:email
@@ -42,7 +42,7 @@ usersRouter.get('/email/:email', requireAuth, async (req, res) => {
     }
     const [rows] = await pool.execute('SELECT * FROM users WHERE email=?', [req.params.email]) as any[];
     res.json(rows.length ? mapUser(rows[0]) : null);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 // POST /register
@@ -90,7 +90,7 @@ usersRouter.post('/register', async (req, res) => {
     });
 
     res.json({ success: true, token });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 // PUT /:id
@@ -104,7 +104,7 @@ usersRouter.put('/:id', requireAuth, requireRoles('admin'), async (req, res) => 
       [name, email, phone ?? null, role, grade ?? null, section ?? null, allergies ?? null, emailVerified ? 1 : 0, req.params.id]
     );
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 // DELETE /:id
@@ -112,7 +112,7 @@ usersRouter.delete('/:id', requireAuth, requireRoles('admin'), async (req, res) 
   try {
     await pool.execute('DELETE FROM users WHERE id=?', [req.params.id]);
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 // POST /verify
@@ -142,7 +142,7 @@ usersRouter.post('/verify', async (req, res) => {
     });
 
     res.json({ status: 'success' });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 // POST /resend-verification
@@ -174,5 +174,5 @@ usersRouter.post('/resend-verification', async (req, res) => {
 
     console.log(`[users] Nuevo token de verificacion para ${email}: ${token}`);
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });

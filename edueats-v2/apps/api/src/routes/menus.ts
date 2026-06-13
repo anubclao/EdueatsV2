@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { requireAuth, requireRoles } from '../middleware/auth.js';
 import { getCachedMenus, invalidateMenuCache } from '../services/cache-helpers.js';
 
 export const menusRouter = Router();
@@ -23,21 +24,21 @@ async function fetchMenus(date?: string) {
   return Object.values(map);
 }
 
-menusRouter.get('/', async (_req, res) => {
+menusRouter.get('/', requireAuth, async (_req, res) => {
   try {
     const menus = await getCachedMenus('menus:all', () => fetchMenus());
     res.json(menus);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-menusRouter.get('/:date', async (req, res) => {
+menusRouter.get('/:date', requireAuth, async (req, res) => {
   try {
     const menu = await getCachedMenus(`menu:${req.params.date}`, () => fetchMenus(req.params.date));
     res.json(menu[0] ?? null);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-menusRouter.post('/', async (req, res) => {
+menusRouter.post('/', requireAuth, requireRoles('admin'), async (req, res) => {
   const { date, isPublished, items } = req.body;
   const conn = await pool.getConnection();
   try {
@@ -59,15 +60,15 @@ menusRouter.post('/', async (req, res) => {
     res.json({ success: true });
   } catch (e: any) {
     await conn.rollback();
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: 'Error interno del servidor.' });
   } finally { conn.release(); }
 });
 
-menusRouter.delete('/:date', async (req, res) => {
+menusRouter.delete('/:date', requireAuth, requireRoles('admin'), async (req, res) => {
   try {
     await pool.execute('DELETE FROM daily_menu_configs WHERE date=?', [req.params.date]);
     // Invalidate cache after delete
     await invalidateMenuCache(req.params.date);
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });

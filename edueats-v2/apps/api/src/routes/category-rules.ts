@@ -26,7 +26,7 @@ categoryRulesRouter.get('/', async (_req, res) => {
       ).then(result => result[0])
     );
     res.json(rows);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 categoryRulesRouter.post('/', requireAuth, requireRoles('admin'), async (req, res) => {
@@ -51,7 +51,7 @@ categoryRulesRouter.post('/', requireAuth, requireRoles('admin'), async (req, re
     res.json({ success: true, id });
   } catch (e: any) {
     if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Esta regla ya existe.' });
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: 'Error interno del servidor.' });
   }
 });
 
@@ -61,5 +61,5 @@ categoryRulesRouter.delete('/:id', requireAuth, requireRoles('admin'), async (re
     await pool.execute('DELETE FROM category_rules WHERE id=?', [req.params.id]);
     await invalidateCategoryRulesCache();
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });

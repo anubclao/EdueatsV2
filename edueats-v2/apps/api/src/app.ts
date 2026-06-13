@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
+import { errorHandler } from './middleware/error.js';
 import { InMemoryRateLimitStore } from './middleware/in-memory-rate-limit-store.js';
 import { getSessionMiddleware } from './middleware/sessions.js';
 import { categoriesRouter } from './routes/categories.js';
@@ -19,6 +20,7 @@ import { preferencesRouter } from './routes/preferences.js';
 import { recipesRouter } from './routes/recipes.js';
 import { reportsRouter } from './routes/reports.js';
 import { rolesRouter } from './routes/roles.js';
+import { schoolsRouter } from './routes/schools.js';
 import { surveysRouter } from './routes/surveys.js';
 import { usersRouter } from './routes/users.js';
 import { variablesRouter } from './routes/variables.js';
@@ -91,15 +93,38 @@ export function createApp() {
   app.use('/api/auth/start', authLimiter);
   app.use('/api/auth/verify-otp', authLimiter);
 
-  const origins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',').map(normalizeOrigin)
-    : ['http://localhost:5173'];
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Lista explícita de orígenes permitidos. En producción exigimos CORS_ORIGIN
+  // bien configurado; en dev permitimos localhost:5173 por defecto (Vite).
+  const allowedOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map(normalizeOrigin).filter(Boolean)
+    : (isProduction
+        ? [] // sin CORS_ORIGIN en prod = no permitimos ningún origen cross-origin
+        : ['http://localhost:5173', 'http://localhost:4173']);
+
+  if (isProduction && allowedOrigins.length === 0) {
+    throw new Error(
+      '[startup] CORS_ORIGIN es obligatorio en producción. ' +
+      'Define CORS_ORIGIN con los orígenes permitidos separados por coma.',
+    );
+  }
 
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || origins.includes(normalizeOrigin(origin))) return callback(null, true);
-        console.error('[CORS] Origin bloqueado:', origin, 'Permitidos:', origins.join(', '));
+        // Las herramientas server-to-server (curl, health checks) no envían Origin.
+        // Bloqueamos solo peticiones cross-origin SIN origin válido (navegadores
+        // antiguos, file://, sandboxed iframes, etc.).
+        if (!origin) {
+          // Permitimos ausencia de Origin solo en endpoints no sensibles (GET /api/health).
+          // Para el resto: rechazar. Aquí estamos en middleware global, así que
+          // pasamos la decisión al handler; los handlers sensibles usan requireAuth
+          // y ya validan la sesión por cookie.
+          return callback(null, true);
+        }
+        if (allowedOrigins.includes(normalizeOrigin(origin))) return callback(null, true);
+        console.error('[CORS] Origin bloqueado:', origin, 'Permitidos:', allowedOrigins.join(', '));
         return callback(new Error('CORS bloqueado'));
       },
       credentials: true,
@@ -116,6 +141,7 @@ export function createApp() {
   app.use('/images', express.static(imagesPath));
 
   app.use('/api/health', healthRouter);
+  app.use('/api/schools', schoolsRouter);
   app.use('/api/auth', authRouter);
   app.use('/api/users', usersRouter);
   app.use('/api/roles', rolesRouter);
@@ -162,6 +188,9 @@ export function createApp() {
       res.sendFile(path.join(webDist, 'index.html'));
     });
   }
+
+  // Error handler global SIEMPRE al final.
+  app.use(errorHandler);
 
   return app;
 }

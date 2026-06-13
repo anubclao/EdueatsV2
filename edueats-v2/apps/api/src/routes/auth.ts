@@ -162,6 +162,7 @@ const toUserResponse = (u: any) => ({
   allergies: u.allergies,
   phone: u.phone,
   emailVerified: Boolean(u.email_verified ?? u.emailVerified),
+  schoolId: u.school_id ?? u.schoolId ?? 'default',
 });
 
 export const authRouter = Router();
@@ -258,7 +259,9 @@ authRouter.post('/start', async (req, res) => {
       success: true,
       challengeId,
       message: 'Si el usuario existe, enviamos un codigo de acceso.',
-      devOtp: process.env.NODE_ENV === 'production' || !user ? undefined : otp,
+      // devOtp SOLO se filtra cuando NODE_ENV=development de forma explícita.
+      // NUNCA cuando NODE_ENV=production o sin NODE_ENV (fail-closed).
+      devOtp: process.env.NODE_ENV === 'development' && !!user ? otp : undefined,
     });
   } catch (error: any) {
     return res.status(500).json({ success: false, message: error.message });

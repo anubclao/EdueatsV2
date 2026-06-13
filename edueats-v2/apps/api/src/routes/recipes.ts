@@ -5,6 +5,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../db/pool.js';
+import { requireAuth, requireRoles } from '../middleware/auth.js';
 import { getCachedRecipes, invalidateRecipesCache } from '../services/cache-helpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -39,13 +40,13 @@ const upload = multer({
 
 export const recipesRouter = Router();
 
-recipesRouter.post('/upload-image', upload.single('image'), (req: any, res) => {
+recipesRouter.post('/upload-image', requireAuth, requireRoles('admin'), upload.single('image'), (req: any, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo.' });
   const category = req._imageCategory || 'general';
   res.json({ imageUrl: `/images/${category}/${req.file.filename}` });
 });
 
-recipesRouter.get('/', async (_req, res) => {
+recipesRouter.get('/', requireAuth, async (_req, res) => {
   try {
     const rows = await getCachedRecipes(() =>
       pool.query(
@@ -53,10 +54,10 @@ recipesRouter.get('/', async (_req, res) => {
       ).then(result => result[0])
     );
     res.json(rows);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-recipesRouter.post('/', async (req, res) => {
+recipesRouter.post('/', requireAuth, requireRoles('admin'), async (req, res) => {
   const { id, name, description, category, calories, imageUrl } = req.body;
   try {
     await pool.execute(
@@ -65,10 +66,10 @@ recipesRouter.post('/', async (req, res) => {
     );
     await invalidateRecipesCache();
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-recipesRouter.put('/:id', async (req, res) => {
+recipesRouter.put('/:id', requireAuth, requireRoles('admin'), async (req, res) => {
   const { name, description, category, calories, imageUrl } = req.body;
   try {
     await pool.execute(
@@ -77,13 +78,13 @@ recipesRouter.put('/:id', async (req, res) => {
     );
     await invalidateRecipesCache();
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-recipesRouter.delete('/:id', async (req, res) => {
+recipesRouter.delete('/:id', requireAuth, requireRoles('admin'), async (req, res) => {
   try {
     await pool.execute('DELETE FROM recipes WHERE id=?', [req.params.id]);
     await invalidateRecipesCache();
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });

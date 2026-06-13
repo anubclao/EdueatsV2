@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import pool from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { enqueueEmail, enqueueNotification } from '../services/queue.js';
@@ -6,6 +7,37 @@ import { notifyAdmins, notifyOrder, notifyUser } from '../services/websocket.js'
 
 export const ordersRouter = Router();
 ordersRouter.use(requireAuth);
+
+// Schema para un item de pedido. recipeId puede venir con prefijo __NO_SELECTION__
+// (lo usa el frontend cuando el usuario no eligió plato en una categoría).
+const orderItemSchema = z.object({
+  category: z.string().trim().min(1).max(64),
+  recipeId: z.string().trim().min(1).max(120),
+});
+
+// Schema base compartido entre / y /batch.
+const baseOrderSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  studentId: z.string().trim().min(1).max(80),
+  studentName: z.string().trim().min(1).max(150),
+  studentGrade: z.union([z.number().int().min(0).max(20), z.string()]).optional(),
+  studentSection: z.string().trim().max(10).optional(),
+  studentAllergies: z.string().trim().max(2000).optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha debe ser YYYY-MM-DD'),
+  status: z.enum(['confirmed', 'pending']).default('pending'),
+  timestamp: z.union([z.string(), z.number(), z.date()]).optional(),
+  items: z.array(orderItemSchema).max(40),
+});
+
+// Schema para la creación individual: el admin puede inyectar cualquier
+// studentId/studentName, pero el estudiante solo puede crear SU propio pedido.
+const orderCreateSchema = baseOrderSchema.extend({
+  studentId: z.string().trim().min(1).max(80),
+  studentName: z.string().trim().min(1).max(150),
+});
+
+// Schema para /batch: solo admin, no confiamos en ningún studentId del cliente.
+const orderBatchSchema = z.array(baseOrderSchema).min(1).max(500);
 
 function toMysqlDateTime(value: any): string | null {
   if (!value) return null;
@@ -47,7 +79,7 @@ ordersRouter.get('/', async (req, res) => {
     const isAdmin = req.authUser?.role === 'admin';
     res.json(await fetchOrders(isAdmin ? undefined : req.authUser!.id));
   }
-  catch (e: any) { res.status(500).json({ error: e.message }); }
+  catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 ordersRouter.get('/count-by-date/:date', async (req, res) => {
@@ -57,7 +89,7 @@ ordersRouter.get('/count-by-date/:date', async (req, res) => {
       ? await pool.execute('SELECT COUNT(*) as count FROM orders WHERE date=?', [req.params.date]) as any[]
       : await pool.execute('SELECT COUNT(*) as count FROM orders WHERE date=? AND student_id=?', [req.params.date, req.authUser!.id]) as any[];
     res.json({ count: Number(row.count) });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 async function insertOrder(conn: any, o: any) {
@@ -75,18 +107,27 @@ async function insertOrder(conn: any, o: any) {
 }
 
 ordersRouter.post('/', async (req, res) => {
+  const parsed = orderCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Datos de pedido inválidos.', details: parsed.error.flatten() });
+  }
+  const order = parsed.data;
+
   const conn = await pool.getConnection();
   try {
     const isAdmin = req.authUser?.role === 'admin';
     if (!isAdmin) {
-      req.body.studentId = req.authUser!.id;
-      req.body.studentName = req.authUser!.name;
+      // Forzar que el pedido sea SIEMPRE del usuario autenticado,
+      // ignorando cualquier studentId/studentName que mande el cliente.
+      order.studentId = req.authUser!.id;
+      order.studentName = req.authUser!.name;
+      // Limpiar campos que el estudiante no puede autodeclarar.
+      order.studentAllergies = undefined;
     }
     await conn.beginTransaction();
-    await insertOrder(conn, req.body);
+    await insertOrder(conn, order);
     await conn.commit();
 
-    const order = req.body;
     void enqueueNotification('order-placed', {
       userId: order.studentId,
       orderId: order.id,
@@ -129,14 +170,20 @@ ordersRouter.post('/', async (req, res) => {
     res.json({ success: true });
   } catch (e: any) {
     await conn.rollback();
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: 'Error interno del servidor.' });
   } finally { conn.release(); }
 });
 
 ordersRouter.post('/batch', async (req, res) => {
   if (req.authUser?.role !== 'admin') return res.status(403).json({ error: 'Sin permisos' });
 
-  const orders: any[] = Array.isArray(req.body) ? req.body : req.body.orders;
+  const input = Array.isArray(req.body) ? req.body : req.body.orders;
+  const parsed = orderBatchSchema.safeParse(input);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Lote de pedidos inválido.', details: parsed.error.flatten() });
+  }
+  const orders = parsed.data;
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -173,7 +220,7 @@ ordersRouter.post('/batch', async (req, res) => {
     res.json({ success: true });
   } catch (e: any) {
     await conn.rollback();
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: 'Error interno del servidor.' });
   } finally { conn.release(); }
 });
 
@@ -200,5 +247,5 @@ ordersRouter.delete('/:id', async (req, res) => {
     });
 
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });

@@ -16,7 +16,7 @@ const getSocketBaseUrl = () => {
 
 let socket: Socket | null = null;
 
-export function connectRealtime(userId: string, role?: string) {
+export function connectRealtime(_userId: string, _role?: string) {
   if (!socket) {
     socket = io(getSocketBaseUrl(), {
       withCredentials: true,
@@ -31,17 +31,22 @@ export function connectRealtime(userId: string, role?: string) {
     });
   }
 
-  socket.emit('join-user', userId);
-  if (role === 'admin') {
-    socket.emit('join-admin', userId);
-  }
+  // El servidor une automáticamente al usuario a su sala y (si es admin)
+  // a la sala de notificaciones. Los emits de join-user/join-admin ya no
+  // son necesarios: el server los rechaza silenciosamente o no hace nada.
 
   return socket;
 }
 
 export function joinOrderRoom(orderId: string) {
   if (!socket) return;
-  socket.emit('join-order', orderId);
+  // El servidor valida que el socket autenticado sea dueño del pedido
+  // o admin; si no, ignora silenciosamente.
+  socket.emit('join-order', orderId, (response: { ok: boolean; error?: string } | undefined) => {
+    if (response && response.ok === false) {
+      console.warn('[realtime] join-order rechazado:', response.error);
+    }
+  });
 }
 
 export function onRealtime<T = unknown>(event: string, handler: (payload: T) => void) {

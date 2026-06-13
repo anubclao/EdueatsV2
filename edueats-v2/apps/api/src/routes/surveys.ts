@@ -1,19 +1,20 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { requireAuth, requireRoles } from '../middleware/auth.js';
 
 export const surveysRouter = Router();
 
 // --- Definitions ---
-surveysRouter.get('/definitions', async (_req, res) => {
+surveysRouter.get('/definitions', requireAuth, async (_req, res) => {
   try {
     const [rows] = await pool.query(
       "SELECT id, title, DATE_FORMAT(start_date, '%Y-%m-%d') as startDate, DATE_FORMAT(end_date, '%Y-%m-%d') as endDate, is_active as isActive, created_at as createdAt FROM survey_definitions ORDER BY start_date DESC"
     ) as any[];
     res.json(rows.map((r: any) => ({ ...r, isActive: Boolean(r.isActive) })));
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-surveysRouter.post('/definitions', async (req, res) => {
+surveysRouter.post('/definitions', requireAuth, requireRoles('admin'), async (req, res) => {
   const { id, title, startDate, endDate, isActive, createdAt } = req.body;
   try {
     const created = createdAt
@@ -24,10 +25,10 @@ surveysRouter.post('/definitions', async (req, res) => {
       [id, title, startDate, endDate, isActive ? 1 : 0, created]
     );
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-surveysRouter.put('/definitions/:id', async (req, res) => {
+surveysRouter.put('/definitions/:id', requireAuth, requireRoles('admin'), async (req, res) => {
   const { title, startDate, endDate, isActive } = req.body;
   try {
     await pool.execute(
@@ -35,29 +36,33 @@ surveysRouter.put('/definitions/:id', async (req, res) => {
       [title, startDate, endDate, isActive ? 1 : 0, req.params.id]
     );
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-surveysRouter.delete('/definitions/:id', async (req, res) => {
+surveysRouter.delete('/definitions/:id', requireAuth, requireRoles('admin'), async (req, res) => {
   try {
     await pool.execute('DELETE FROM survey_definitions WHERE id=?', [req.params.id]);
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 // --- Results ---
-surveysRouter.get('/results/check', async (req, res) => {
+surveysRouter.get('/results/check', requireAuth, async (req, res) => {
   const { userId, surveyDefId } = req.query as Record<string, string>;
   try {
+    // Los estudiantes solo pueden chequear su propio check; admin y staff pueden ver cualquiera.
+    if (req.authUser?.role === 'student' && req.authUser.id !== userId) {
+      return res.status(403).json({ error: 'Sin permisos' });
+    }
     const [rows] = await pool.execute(
       'SELECT id FROM survey_results WHERE user_id=? AND survey_definition_id=?',
       [userId, surveyDefId]
     ) as any[];
     res.json(rows.length > 0);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-surveysRouter.get('/results', async (req, res) => {
+surveysRouter.get('/results', requireAuth, async (req, res) => {
   const { surveyDefId, type } = req.query as Record<string, string>;
   try {
     let sql = `SELECT id, survey_definition_id as surveyDefinitionId, user_id as userId,
@@ -73,7 +78,7 @@ surveysRouter.get('/results', async (req, res) => {
     sql += ' ORDER BY date DESC';
     const [rows] = await pool.query(sql, params) as any[];
     res.json(rows);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
 surveysRouter.post('/results', async (req, res) => {
@@ -89,14 +94,14 @@ surveysRouter.post('/results', async (req, res) => {
       [id, surveyDefinitionId, userId, userName, userRole, userPhone ?? null, date, qualityRating, quantityRating, type, comment, status ?? 'pending']
     );
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-surveysRouter.put('/results/:id', async (req, res) => {
+surveysRouter.put('/results/:id', requireAuth, requireRoles('admin'), async (req, res) => {
   const { adminResponse, status } = req.body;
   try {
     await pool.execute('UPDATE survey_results SET admin_response=?, status=? WHERE id=?',
       [adminResponse ?? null, status, req.params.id]);
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });

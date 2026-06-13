@@ -1,9 +1,15 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { requireAuth } from '../middleware/auth.js';
 
 export const preferencesRouter = Router();
 
-preferencesRouter.get('/:studentId', async (req, res) => {
+preferencesRouter.get('/:studentId', requireAuth, async (req, res) => {
+  // Los estudiantes solo pueden ver sus propias preferencias recurrentes.
+  // admin/staff/teacher/visitor pueden ver cualquiera.
+  if (req.authUser?.role === 'student' && req.authUser.id !== req.params.studentId) {
+    return res.status(403).json({ error: 'Sin permisos' });
+  }
   try {
     const [rows] = await pool.query(`
       SELECT rp.student_id as studentId, rp.day_of_week as dayOfWeek,
@@ -20,10 +26,10 @@ preferencesRouter.get('/:studentId', async (req, res) => {
       if (r.recipeId) map[key].items.push({ category: r.category, recipeId: r.recipeId });
     }
     res.json(Object.values(map));
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-preferencesRouter.post('/', async (req, res) => {
+preferencesRouter.post('/', requireAuth, async (req, res) => {
   const { studentId, dayOfWeek, items } = req.body;
   const conn = await pool.getConnection();
   try {
@@ -40,14 +46,17 @@ preferencesRouter.post('/', async (req, res) => {
     res.json({ success: true });
   } catch (e: any) {
     await conn.rollback();
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: 'Error interno del servidor.' });
   } finally { conn.release(); }
 });
 
-preferencesRouter.delete('/:studentId/:dayOfWeek', async (req, res) => {
+preferencesRouter.delete('/:studentId/:dayOfWeek', requireAuth, async (req, res) => {
+  if (req.authUser?.role === 'student' && req.authUser.id !== req.params.studentId) {
+    return res.status(403).json({ error: 'Sin permisos' });
+  }
   try {
     await pool.execute('DELETE FROM recurring_preferences WHERE student_id=? AND day_of_week=?',
       [req.params.studentId, req.params.dayOfWeek]);
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });

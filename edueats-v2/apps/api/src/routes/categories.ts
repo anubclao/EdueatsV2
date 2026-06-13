@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../db/pool.js';
+import { requireAuth, requireRoles } from '../middleware/auth.js';
 import { getCachedCategories, invalidateCategoriesCache } from '../services/cache-helpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -27,17 +28,17 @@ export async function ensureImageFoldersForAllCategories() {
   await Promise.all(rows.map((r: any) => ensureImageFolderForCategoryId(r.id)));
 }
 
-categoriesRouter.get('/', async (_req, res) => {
+categoriesRouter.get('/', requireAuth, async (_req, res) => {
   try {
     const rows = await getCachedCategories(() =>
       pool.query('SELECT id, name, `order`, exclusive_group AS exclusiveGroup FROM categories ORDER BY `order`')
         .then(result => result[0])
     );
     res.json(rows);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-categoriesRouter.post('/', async (req, res) => {
+categoriesRouter.post('/', requireAuth, requireRoles('admin'), async (req, res) => {
   const { id, name, order, exclusiveGroup } = req.body;
   try {
     if (!isValidCategoryId(id)) return res.status(400).json({ error: 'ID de categoría inválido.' });
@@ -48,10 +49,10 @@ categoriesRouter.post('/', async (req, res) => {
     await ensureImageFolderForCategoryId(id);
     await invalidateCategoriesCache();
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-categoriesRouter.put('/:id', async (req, res) => {
+categoriesRouter.put('/:id', requireAuth, requireRoles('admin'), async (req, res) => {
   const { name, order, exclusiveGroup } = req.body;
   try {
     await pool.execute(
@@ -61,12 +62,12 @@ categoriesRouter.put('/:id', async (req, res) => {
     await ensureImageFolderForCategoryId(req.params.id);
     await invalidateCategoriesCache();
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
 
-categoriesRouter.delete('/:id', async (req, res) => {
+categoriesRouter.delete('/:id', requireAuth, requireRoles('admin'), async (req, res) => {
   try {
     await pool.execute('DELETE FROM categories WHERE id=?', [req.params.id]);
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
