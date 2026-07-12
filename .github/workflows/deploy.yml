@@ -1,16 +1,16 @@
-name: Deploy EduEats v2
+name: Build and typecheck
 
 on:
   push:
     branches:
       - main
-    paths:
-      - 'edueats-v2/**'
-      - '.github/workflows/deploy.yml'
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  deploy:
-    name: Build and Deploy to production
+  build:
+    name: Install, typecheck, build
     runs-on: ubuntu-latest
 
     steps:
@@ -28,31 +28,19 @@ jobs:
         working-directory: edueats-v2
         run: npm ci
 
-      - name: Build monorepo
+      - name: Typecheck (shared, api)
+        working-directory: edueats-v2
+        run: |
+          npx tsc -p packages/shared --noEmit
+          npx tsc -p apps/api --noEmit
+
+      - name: Build (shared, api, web)
         working-directory: edueats-v2
         run: npm run build
 
-      - name: Deploy via SSH and restart PM2
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          password: ${{ secrets.SSH_PASS }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          script: |
-            set -e
-            cd ${{ secrets.DEPLOY_PATH }}
-
-            git fetch origin main
-            git reset --hard origin/main
-
-            cd edueats-v2
-            npm ci
-            npm run build
-
-            pm2 reload edueats-v2 --update-env || \
-              pm2 start apps/api/dist/server.js \
-                --name edueats-v2 \
-                --env production \
-                --update-env
-            pm2 save
+      - name: Verify artifacts
+        working-directory: edueats-v2
+        run: |
+          test -f apps/api/dist/server.js || (echo "API server.js not built" && exit 1)
+          test -f apps/api/dist/web/index.html || (echo "Web dist not synced to api/dist/web" && exit 1)
+          echo "Build artifacts OK"
