@@ -5,3 +5,11 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Backups locales (no se commitean)
+backups/
+EduEats - copia/
+EduEats - copia.rar
+*.rar
+*.zip
+*.7z

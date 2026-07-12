@@ -20,3 +20,8 @@ start-api-server.bat
 # Helpers de debug local (no se commitean, quedan solo en este checkout)
 start-api-server.bat
 scripts/migrations/tools/
+
+# Logs locales (debug de arranque)
+*.log
+server.out.log
+server.err.log
