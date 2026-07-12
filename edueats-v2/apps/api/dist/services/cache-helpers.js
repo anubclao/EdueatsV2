@@ -1,18 +1,45 @@
-import { getCached, setCached, deleteCached, clearCachePattern } from './redis.js';
+const cacheStore = new Map();
+const getFromCache = (key) => {
+    const entry = cacheStore.get(key);
+    if (!entry)
+        return null;
+    if (entry.expiresAt <= Date.now()) {
+        cacheStore.delete(key);
+        return null;
+    }
+    return entry.value;
+};
+const setInCache = (key, value, ttlSeconds) => {
+    cacheStore.set(key, {
+        value,
+        expiresAt: Date.now() + Math.max(1, ttlSeconds) * 1000,
+    });
+};
+const deleteFromCache = (key) => {
+    cacheStore.delete(key);
+};
+const clearByPattern = (prefixPattern) => {
+    const prefix = prefixPattern.replace('*', '');
+    for (const key of cacheStore.keys()) {
+        if (key.startsWith(prefix)) {
+            cacheStore.delete(key);
+        }
+    }
+};
 /**
  * Cache helper functions for common patterns
  */
 /**
- * Get or fetch menu data with Redis caching
+ * Get or fetch menu data with in-memory caching.
  * Cache TTL: 1 hour (menus rarely change during the day)
  */
 export async function getCachedMenus(key, fetcher, ttlSeconds = 3600) {
-    const cached = await getCached(key);
+    const cached = getFromCache(key);
     if (cached !== null) {
         return cached;
     }
     const fresh = await fetcher();
-    await setCached(key, fresh, ttlSeconds);
+    setInCache(key, fresh, ttlSeconds);
     return fresh;
 }
 /**
@@ -20,68 +47,68 @@ export async function getCachedMenus(key, fetcher, ttlSeconds = 3600) {
  */
 export async function invalidateMenuCache(date) {
     if (date) {
-        await deleteCached(`menu:${date}`);
+        deleteFromCache(`menu:${date}`);
     }
     // Clear all menu patterns if no specific date
-    await clearCachePattern('menu:*');
+    clearByPattern('menu:*');
 }
 /**
- * Get or fetch recipes with Redis caching
+ * Get or fetch recipes with in-memory caching.
  * Cache TTL: 6 hours (recipes are static)
  */
 export async function getCachedRecipes(fetcher, ttlSeconds = 21600) {
-    const cached = await getCached('recipes:all');
+    const cached = getFromCache('recipes:all');
     if (cached !== null) {
         return cached;
     }
     const fresh = await fetcher();
-    await setCached('recipes:all', fresh, ttlSeconds);
+    setInCache('recipes:all', fresh, ttlSeconds);
     return fresh;
 }
 /**
  * Invalidate recipes cache
  */
 export async function invalidateRecipesCache() {
-    await deleteCached('recipes:all');
-    await clearCachePattern('recipes:*');
+    deleteFromCache('recipes:all');
+    clearByPattern('recipes:*');
 }
 /**
- * Get or fetch categories with Redis caching
+ * Get or fetch categories with in-memory caching.
  * Cache TTL: 6 hours (categories are static)
  */
 export async function getCachedCategories(fetcher, ttlSeconds = 21600) {
-    const cached = await getCached('categories:all');
+    const cached = getFromCache('categories:all');
     if (cached !== null) {
         return cached;
     }
     const fresh = await fetcher();
-    await setCached('categories:all', fresh, ttlSeconds);
+    setInCache('categories:all', fresh, ttlSeconds);
     return fresh;
 }
 /**
  * Invalidate categories cache
  */
 export async function invalidateCategoriesCache() {
-    await deleteCached('categories:all');
-    await clearCachePattern('categories:*');
+    deleteFromCache('categories:all');
+    clearByPattern('categories:*');
 }
 /**
- * Get or fetch category rules with Redis caching
+ * Get or fetch category rules with in-memory caching.
  * Cache TTL: 6 hours (rules are static)
  */
 export async function getCachedCategoryRules(fetcher, ttlSeconds = 21600) {
-    const cached = await getCached('category-rules:all');
+    const cached = getFromCache('category-rules:all');
     if (cached !== null) {
         return cached;
     }
     const fresh = await fetcher();
-    await setCached('category-rules:all', fresh, ttlSeconds);
+    setInCache('category-rules:all', fresh, ttlSeconds);
     return fresh;
 }
 /**
  * Invalidate category rules cache
  */
 export async function invalidateCategoryRulesCache() {
-    await deleteCached('category-rules:all');
-    await clearCachePattern('category-rules:*');
+    deleteFromCache('category-rules:all');
+    clearByPattern('category-rules:*');
 }

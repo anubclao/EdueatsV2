@@ -179,8 +179,10 @@ export function initWebSocket(httpServer: HTTPServer) {
     });
 
     // join-user rechazado: el user ya está en su sala automáticamente.
+    // El cliente no necesita su propio userId de vuelta (ya lo tiene en
+    // su auth context) y mandárselo en el ack es un mini-leak evitable.
     socket.on('join-user', (ack?: (res: { ok: boolean; error?: string }) => void) => {
-      ack?.({ ok: true, userId });
+      ack?.({ ok: true });
     });
 
     // Disconnect handler

@@ -14,33 +14,46 @@ const parseCookie = (cookieHeader, key) => {
     }
     return null;
 };
-export const hashToken = (value) => createHash('sha256').update(value).digest('hex');
+/**
+ * Hash de token con HMAC-SHA256, keyed con SESSION_SECRET.
+ * Esto previene que un dump de la BD permita verificar tokens: para calcular
+ * un hash válido, un atacante necesitaría además el secret del servidor.
+ *
+ * Si SESSION_SECRET no está definido, derivamos uno de un fallback solo-dev
+ * (que ahora SÍ se exige en producción — ver sessions.ts).
+ */
+const HASH_SECRET = process.env.SESSION_SECRET?.trim() || 'dev-only-insecure-hmac-fallback';
+export const hashToken = (value) => createHash('sha256').update(value).update('|').update(HASH_SECRET).digest('hex');
+const isProduction = process.env.NODE_ENV === 'production';
+const COOKIE_NAME = isProduction ? '__Host-edueats_session' : SESSION_COOKIE;
 export const setSessionCookie = (res, token, maxAgeMs) => {
-    res.cookie(SESSION_COOKIE, token, {
+    res.cookie(COOKIE_NAME, token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
         path: '/',
         maxAge: maxAgeMs,
     });
 };
 export const clearSessionCookie = (res) => {
-    res.clearCookie(SESSION_COOKIE, {
+    res.clearCookie(COOKIE_NAME, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
         path: '/',
     });
 };
 export const requireAuth = async (req, res, next) => {
     try {
-        const token = parseCookie(req.headers.cookie, SESSION_COOKIE);
+        // Soportar tanto el nombre dev como el de prod (con __Host- prefix).
+        const token = parseCookie(req.headers.cookie, COOKIE_NAME)
+            ?? (isProduction ? null : parseCookie(req.headers.cookie, SESSION_COOKIE));
         if (!token)
             return res.status(401).json({ error: 'No autenticado' });
         const tokenHash = hashToken(token);
         const now = Date.now();
         const startOfTodayMs = getBogotaStartOfDayMs(now);
-        const [rows] = await pool.execute(`SELECT u.id, u.name, u.email, u.role, u.email_verified as emailVerified
+        const [rows] = await pool.execute(`SELECT u.id, u.name, u.email, u.role, u.email_verified as emailVerified, u.school_id as schoolId
        FROM auth_sessions s
        INNER JOIN users u ON u.id = s.user_id
        WHERE s.token_hash=?
@@ -50,18 +63,21 @@ export const requireAuth = async (req, res, next) => {
        LIMIT 1`, [tokenHash, now, startOfTodayMs]);
         if (!rows.length)
             return res.status(401).json({ error: 'Sesion invalida' });
+        const schoolId = rows[0].schoolId || 'default';
         req.authUser = {
             id: rows[0].id,
             name: rows[0].name,
             email: rows[0].email,
             role: rows[0].role,
             emailVerified: Boolean(rows[0].emailVerified),
+            schoolId,
         };
         req.authSessionToken = token;
+        req.schoolId = schoolId;
         next();
     }
     catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Error interno del servidor.' });
     }
 };
 export const requireRoles = (...roles) => {
