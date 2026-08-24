@@ -98,7 +98,10 @@ const AppRoutes = () => {
           <Route path="notifications" element={<Notifications />} />
           <Route path="surveys" element={<SurveyManager />} />
           <Route path="global-variables" element={<GlobalVariables />} />
-          <Route path="assistant" element={<ChatAssistant />} />
+          {/* Asistente EduEats desactivado temporalmente (evento en vivo 2026-08-24).
+              Redirige al dashboard para que cualquier link viejo o marcador del browser
+              no caiga en una página rota. */}
+          <Route path="assistant" element={<Navigate to="/admin/dashboard" replace />} />
         </Route>
 
         {/* Protected Student Routes (Now accessible by Teacher, Staff, Visitor) */}
@@ -107,7 +110,8 @@ const AppRoutes = () => {
           <Route path="dashboard" element={<StudentDashboard />} />
           <Route path="order/:date" element={<OrderFlow />} />
           <Route path="survey" element={<SurveyForm />} />
-          <Route path="assistant" element={<ChatAssistant />} />
+          {/* Asistente EduEats desactivado temporalmente. */}
+          <Route path="assistant" element={<Navigate to="/student/dashboard" replace />} />
         </Route>
 
         {/* Default redirect */}

@@ -168,7 +168,9 @@ export const Layout = ({ children }: { children?: ReactNode }) => {
           <NavItem to="/admin/menu" icon={CalendarRange} label="Planificador de Menú" />
           <NavItem to="/admin/notifications" icon={Megaphone} label="Notificaciones" />
           <NavItem to="/admin/surveys" icon={MessageSquare} label="Encuestas y PQR" />
-          <NavItem to="/admin/assistant" icon={Bot} label="Asistente EduEats" />
+          {/* Asistente EduEats desactivado temporalmente (evento en vivo 2026-08-24).
+              Lo dejamos comentado para rehabilitar facilmente post-evento. */}
+          {/* <NavItem to="/admin/assistant" icon={Bot} label="Asistente EduEats" /> */}
           <CollapsibleNavItem icon={FileBarChart} label="Reportes" baseRoute="/admin/reports">
             <NavItem to="/admin/reports/overview" label="Reportes Generales" isSubItem />
             <NavItem to="/admin/reports/kpi" label="Métricas KPI" isSubItem />
@@ -191,7 +193,8 @@ export const Layout = ({ children }: { children?: ReactNode }) => {
           </div>
           <NavItem to="/student/dashboard" icon={CalendarDays} label="Mi Semana" />
           <NavItem to="/student/survey" icon={HeartHandshake} label="Calificar Servicio" />
-          <NavItem to="/student/assistant" icon={Bot} label="Asistente EduEats" />
+          {/* Asistente EduEats desactivado temporalmente (evento en vivo 2026-08-24). */}
+          {/* <NavItem to="/student/assistant" icon={Bot} label="Asistente EduEats" /> */}
         </>
       )}
     </div>
