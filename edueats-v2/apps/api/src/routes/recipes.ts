@@ -57,7 +57,12 @@ recipesRouter.get('/', requireAuth, async (req, res) => {
       ).then(result => (result as any[])[0])
     );
     res.json(rows);
-  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
+  } catch (e: any) {
+    // Loguear el error real para diagnóstico. El cliente sigue recibiendo
+    // 500 genérico (error.ts se encarga de no filtrar detalles).
+    console.error('[recipes GET] Error fetching recipes:', e?.code, e?.message);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
 });
 
 recipesRouter.post('/', requireAuth, requireRoles('admin'), async (req, res) => {
