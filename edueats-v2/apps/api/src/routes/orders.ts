@@ -1,13 +1,46 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import pool from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { enqueueEmail, enqueueNotification } from '../services/queue.js';
 import { notifyAdmins, notifyOrder, notifyUser } from '../services/websocket.js';
 import { getSchoolId } from '../services/tenant.js';
+import { InMemoryRateLimitStore } from '../middleware/in-memory-rate-limit-store.js';
 
 export const ordersRouter = Router();
 ordersRouter.use(requireAuth);
+
+// ── Rate limit específico para orders ────────────────────────────────────
+// Diseñado para el evento en vivo con 120 alumnos simultáneos.
+//
+// Doble bucket:
+//   - por usuario autenticado (5 pedidos/min) → evita que un alumno con
+//     sesión válida haga spam desde un mismo cliente
+//   - por IP (20 pedidos/min) → atrapa el caso de un alumno haciendo
+//     requests sin auth válida o con sesiones distintas desde una misma
+//     IP compartida (WiFi del colegio)
+//
+// 120 alumnos × 1 pedido cada 5 min = 24 pedidos/min pico, holgura amplia.
+const ordersUserLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  keyGenerator: (req: any) => `orders:user:${req.authUser?.id ?? req.ip ?? 'anon'}`,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Estás haciendo pedidos demasiado rápido. Espera un momento.' },
+  store: new InMemoryRateLimitStore(),
+});
+const ordersIpLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  keyGenerator: (req: any) => `orders:ip:${req.ip ?? 'unknown'}`,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados pedidos desde tu conexión. Espera un momento.' },
+  store: new InMemoryRateLimitStore(),
+});
+ordersRouter.use(ordersUserLimiter, ordersIpLimiter);
 
 // Schema para un item de pedido. recipeId puede venir con prefijo __NO_SELECTION__
 // (lo usa el frontend cuando el usuario no eligió plato en una categoría).

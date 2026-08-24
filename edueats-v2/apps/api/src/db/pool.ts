@@ -53,7 +53,7 @@ const dbConfig = {
   database: dbName,
   charset: 'UTF8MB4_UNICODE_CI',
   waitForConnections: true,
-  connectionLimit: asPositiveInt(process.env.DB_POOL_CONNECTION_LIMIT, 20),
+  connectionLimit: asPositiveInt(process.env.DB_POOL_CONNECTION_LIMIT, 50),
   queueLimit: asPositiveInt(process.env.DB_POOL_QUEUE_LIMIT, 0),
   connectTimeout: Number(asEnvString(process.env.DB_CONNECT_TIMEOUT_MS) || 10000),
   enableKeepAlive: true,
