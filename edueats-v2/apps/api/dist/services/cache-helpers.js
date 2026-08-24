@@ -18,97 +18,116 @@ const setInCache = (key, value, ttlSeconds) => {
 const deleteFromCache = (key) => {
     cacheStore.delete(key);
 };
-const clearByPattern = (prefixPattern) => {
-    const prefix = prefixPattern.replace('*', '');
+/**
+ * Borra TODAS las entradas cuya key empieza con `prefix` (ej: `recipes:`).
+ * Usar con cuidado: en multi-tenant esto afecta a TODOS los colegios,
+ * que es lo apropiado cuando una admin plataforma hace una acción cross-tenant
+ * (ej: crear un colegio nuevo, migrar imágenes). Para invalidaciones del
+ * tenant actual, usar {@link invalidateForSchool}.
+ */
+const clearByPattern = (prefix) => {
+    const prefixToMatch = prefix.endsWith(':') ? prefix : `${prefix}:`;
     for (const key of cacheStore.keys()) {
-        if (key.startsWith(prefix)) {
+        if (key.startsWith(prefixToMatch)) {
             cacheStore.delete(key);
         }
     }
 };
 /**
- * Cache helper functions for common patterns
+ * Borra las entradas de un namespace que pertenezcan a un colegio específico.
+ * Es la invalidación correcta para mutaciones tenant-scoped (ej: admin de
+ * colegio X edita una receta → invalidar solo `recipes:schoolId=X`).
  */
+const invalidateForSchool = (namespace, schoolId) => {
+    const prefix = `${namespace}:${schoolId}`;
+    for (const key of cacheStore.keys()) {
+        if (key.startsWith(prefix)) {
+            cacheStore.delete(key);
+        }
+    }
+    // También borra el alias `:all` legacy si existe (defensivo).
+    deleteFromCache(`${namespace}:all`);
+};
 /**
- * Get or fetch menu data with in-memory caching.
- * Cache TTL: 1 hour (menus rarely change during the day)
+ * Cache helper functions for common patterns.
+ *
+ * MULTI-TENANT: todas las funciones de cache incluyen `schoolId` en la key
+ * para evitar data leak entre colegios. La excepción documentada son los
+ * `category_rules` que son globales de plataforma.
  */
+// ── Menus ─────────────────────────────────────────────────────────────────
 export async function getCachedMenus(key, fetcher, ttlSeconds = 3600) {
     const cached = getFromCache(key);
-    if (cached !== null) {
+    if (cached !== null)
         return cached;
-    }
     const fresh = await fetcher();
     setInCache(key, fresh, ttlSeconds);
     return fresh;
 }
 /**
- * Invalidate menu cache pattern after changes
+ * Invalida el cache de menús.
+ * @param date Si se pasa, borra solo ese día del colegio.
+ *   Si no se pasa, borra el scope del colegio (no cross-tenant).
  */
-export async function invalidateMenuCache(date) {
-    if (date) {
-        deleteFromCache(`menu:${date}`);
+export async function invalidateMenuCache(opts) {
+    const { schoolId, date } = opts;
+    // Llamadas legacy (sin schoolId) — borra TODO. Solo válido para admin
+    // plataforma o migraciones. Log explícito para que un descuido se note.
+    if (!schoolId) {
+        console.warn('[cache] invalidateMenuCache sin schoolId — limpiando TODO el namespace (legado)');
+        clearByPattern('menu');
+        return;
     }
-    // Clear all menu patterns if no specific date
-    clearByPattern('menu:*');
+    if (date)
+        deleteFromCache(`menu:${schoolId}:${date}`);
+    invalidateForSchool('menu', schoolId);
 }
-/**
- * Get or fetch recipes with in-memory caching.
- * Cache TTL: 6 hours (recipes are static)
- */
-export async function getCachedRecipes(fetcher, ttlSeconds = 21600) {
-    const cached = getFromCache('recipes:all');
-    if (cached !== null) {
+// ── Recipes ───────────────────────────────────────────────────────────────
+export async function getCachedRecipes(schoolId, fetcher, ttlSeconds = 21600) {
+    const key = `recipes:${schoolId}`;
+    const cached = getFromCache(key);
+    if (cached !== null)
         return cached;
-    }
     const fresh = await fetcher();
-    setInCache('recipes:all', fresh, ttlSeconds);
+    setInCache(key, fresh, ttlSeconds);
     return fresh;
 }
-/**
- * Invalidate recipes cache
- */
-export async function invalidateRecipesCache() {
-    deleteFromCache('recipes:all');
-    clearByPattern('recipes:*');
-}
-/**
- * Get or fetch categories with in-memory caching.
- * Cache TTL: 6 hours (categories are static)
- */
-export async function getCachedCategories(fetcher, ttlSeconds = 21600) {
-    const cached = getFromCache('categories:all');
-    if (cached !== null) {
-        return cached;
+export async function invalidateRecipesCache(schoolId) {
+    if (!schoolId) {
+        console.warn('[cache] invalidateRecipesCache sin schoolId — limpiando TODO (legado)');
+        clearByPattern('recipes');
+        return;
     }
+    invalidateForSchool('recipes', schoolId);
+}
+// ── Categories ────────────────────────────────────────────────────────────
+export async function getCachedCategories(schoolId, fetcher, ttlSeconds = 21600) {
+    const key = `categories:${schoolId}`;
+    const cached = getFromCache(key);
+    if (cached !== null)
+        return cached;
     const fresh = await fetcher();
-    setInCache('categories:all', fresh, ttlSeconds);
+    setInCache(key, fresh, ttlSeconds);
     return fresh;
 }
-/**
- * Invalidate categories cache
- */
-export async function invalidateCategoriesCache() {
-    deleteFromCache('categories:all');
-    clearByPattern('categories:*');
+export async function invalidateCategoriesCache(schoolId) {
+    if (!schoolId) {
+        console.warn('[cache] invalidateCategoriesCache sin schoolId — limpiando TODO (legado)');
+        clearByPattern('categories');
+        return;
+    }
+    invalidateForSchool('categories', schoolId);
 }
-/**
- * Get or fetch category rules with in-memory caching.
- * Cache TTL: 6 hours (rules are static)
- */
+// ── Category Rules (GLOBAL — sin schoolId) ───────────────────────────────
 export async function getCachedCategoryRules(fetcher, ttlSeconds = 21600) {
-    const cached = getFromCache('category-rules:all');
-    if (cached !== null) {
+    const key = 'category-rules:global';
+    const cached = getFromCache(key);
+    if (cached !== null)
         return cached;
-    }
     const fresh = await fetcher();
-    setInCache('category-rules:all', fresh, ttlSeconds);
+    setInCache(key, fresh, ttlSeconds);
     return fresh;
 }
-/**
- * Invalidate category rules cache
- */
 export async function invalidateCategoryRulesCache() {
-    deleteFromCache('category-rules:all');
-    clearByPattern('category-rules:*');
+    deleteFromCache('category-rules:global');
 }
