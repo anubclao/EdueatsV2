@@ -123,6 +123,32 @@ ci: cambios en CI/CD
 
 ## ⚠️ Troubleshooting post-deploy
 
+### Imágenes devuelven 404 tras redeploy
+
+**Síntoma:** DevTools muestra `Failed to load /images/general/<uuid>.png: 404`.
+Las recetas cargan en la BD con `image_url` poblado, pero las imágenes no aparecen.
+
+**Causa:** el server.js vive en `hbuilds/versions/<hash>/nodejs/apps/api/dist/`, separado
+del storage persistente donde están las imágenes. El walk-up relativo que funciona
+en dev (`__dirname/../../../../images`) no resuelve en producción porque el `images/`
+no está en el árbol del build.
+
+**Fix:**
+1. Definir env var `IMAGES_PATH=/home/u.../domains/<tu-dominio>/public_html/images`
+2. Reiniciar el proceso Node
+3. El log al arrancar debe mostrar `[startup] Sirviendo imágenes desde: <ruta>`
+
+**Por qué pasa:** cada deploy de Hostinger genera un nuevo hash de versión y un
+nuevo directorio. El código se redeploya pero los archivos subidos (imágenes)
+siguen en el storage persistente. Sin la env var, el server busca en el lugar
+equivocado.
+
+**Lección operativa:** la primera acción tras un redeploy que rompa imágenes es
+verificar el log de arranque y confirmar que el path resuelto por `IMAGES_PATH`
+(o el fallback de walk-up) realmente apunta al directorio con las imágenes.
+Para que el próximo deploy sea smooth, agregar `IMAGES_PATH` al template de
+variables de entorno del proyecto en Hostinger.
+
 ### Backend muere al arrancar con `SESSION_SECRET es obligatorio`
 
 **Síntoma:** log muestra
