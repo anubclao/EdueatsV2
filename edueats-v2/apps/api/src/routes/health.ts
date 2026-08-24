@@ -30,7 +30,7 @@ healthRouter.get('/debug-images', async (_req, res) => {
     walk_up_6: path.join(__dirname, '..', '..', '..', '..', '..', '..', 'images'),
   };
 
-  const result = {};
+  const result: Record<string, any> = {};
   for (const [label, p] of Object.entries(candidates)) {
     if (!p) {
       result[label] = { path: null, exists: false };
