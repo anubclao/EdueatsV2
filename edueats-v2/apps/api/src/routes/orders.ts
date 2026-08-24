@@ -159,9 +159,20 @@ ordersRouter.post('/', async (req, res) => {
   }
   const order = parsed.data;
 
+  // Validación de fecha: no se pueden crear pedidos para días pasados.
+  // Admin puede sobreescribir esta restricción (caso: registrar pedido manual
+  // fuera de ventana). Estudiante queda bloqueado en el pasado.
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const isAdmin = req.authUser?.role === 'admin';
+  if (!isAdmin && order.date < todayStr) {
+    return res.status(400).json({
+      error: `No puedes crear pedidos para fechas pasadas. Hoy es ${todayStr}, intentaste pedir para ${order.date}.`,
+    });
+  }
+
   const conn = await pool.getConnection();
   try {
-    const isAdmin = req.authUser?.role === 'admin';
     if (!isAdmin) {
       // Forzar que el pedido sea SIEMPRE del usuario autenticado,
       // ignorando cualquier studentId/studentName que mande el cliente.

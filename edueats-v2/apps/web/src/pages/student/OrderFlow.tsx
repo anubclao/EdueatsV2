@@ -488,7 +488,7 @@ export const OrderFlow = () => {
     joinOrderRoom(orderId);
 
     // Refresh view will trigger the Read Only summary or redirect
-    navigate('/student/dashboard?tab=history');
+    navigate('/student/dashboard?tab=history&confirmed=1');
   };
 
   const progress = ((activeStepPos + 1) / Math.max(activeCategories.length, 1)) * 100;

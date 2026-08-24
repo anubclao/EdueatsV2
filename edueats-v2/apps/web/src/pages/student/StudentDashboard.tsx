@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, useMemo } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../services/db';
 import { onRealtime } from '../../services/realtime';
@@ -13,6 +13,7 @@ const StudentCaloriesChart = lazy(() => import('../../components/charts/StudentC
 export const StudentDashboard = () => {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [schoolName, setSchoolName] = useState('Cargando...');
@@ -23,6 +24,7 @@ export const StudentDashboard = () => {
   // Reminder State
   const [showReminder, setShowReminder] = useState(false);
   const [tomorrowDate, setTomorrowDate] = useState('');
+  const [orderJustConfirmed, setOrderJustConfirmed] = useState(false);
   
   // Available dates with menus
   const [availableDates, setAvailableDates] = useState<string[]>([]);
@@ -91,6 +93,17 @@ export const StudentDashboard = () => {
         setActiveTab('history');
       } else if (params.get('tab') === 'unconfirmed-orders') {
         setActiveTab('unconfirmed-orders');
+      }
+      if (params.get('confirmed') === '1') {
+        setOrderJustConfirmed(true);
+        // Limpia el query param de la URL para que un refresh no re-dispare.
+        const newParams = new URLSearchParams(location.search);
+        newParams.delete('confirmed');
+        const newSearch = newParams.toString();
+        navigate(
+          { pathname: location.pathname, search: newSearch ? `?${newSearch}` : '' },
+          { replace: true },
+        );
       }
 
       const [allOrders, allRecipes, menusData, catsData, globalVars, allNotes] = await Promise.all([
@@ -368,7 +381,31 @@ export const StudentDashboard = () => {
 
   return (
     <div className="space-y-6">
-      
+
+      {/* Banner de confirmación tras crear pedido */}
+      {orderJustConfirmed && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/40 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm"
+        >
+          <div className="bg-green-100 dark:bg-green-800 p-2 rounded-full">
+            <CheckCircle className="text-green-600 dark:text-green-200" size={24} />
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-green-900 dark:text-green-100">¡Pedido confirmado!</p>
+            <p className="text-sm text-green-800 dark:text-green-200">Tu pedido fue guardado correctamente. Lo verás en la pestaña "Historial".</p>
+          </div>
+          <button
+            onClick={() => setOrderJustConfirmed(false)}
+            className="text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-800 rounded-full p-1 transition-colors"
+            aria-label="Cerrar mensaje"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
       {/* User Profile Header */}
       {user && (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col md:flex-row items-start md:items-center gap-4">

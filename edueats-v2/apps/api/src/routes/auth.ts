@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomInt } from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import pool from '../db/pool.js';
-import { clearSessionCookie, hashToken, requireAuth, revokeSessionByToken, setSessionCookie } from '../middleware/auth.js';
+import { clearSessionCookie, hashToken, requireAuth, requireRoles, revokeSessionByToken, setSessionCookie } from '../middleware/auth.js';
 import { sendOtpEmail } from '../services/email.js';
 import { enqueueEmail, enqueueNotification } from '../services/queue.js';
 import { getBogotaEndOfDayMs } from '../services/timezone.js';
@@ -166,6 +166,91 @@ const toUserResponse = (u: any) => ({
 });
 
 export const authRouter = Router();
+
+// ── Admin: reenviar OTP a un alumno específico ────────────────────────────
+// Caso de uso: el alumno dice "no me llegó el código" o su email está mal
+// escrito. El admin genera un OTP nuevo, lo ve en consola del server
+// (porque el SMTP puede estar caído o el email mal escrito) y se lo dicta
+// al alumno por WhatsApp/teléfono.
+const adminResendOtpSchema = z.object({
+  identifier: z.string().trim().min(3).max(120),
+});
+
+authRouter.post('/admin/resend-otp', requireAuth, requireRoles('admin'), async (req, res) => {
+  if (!(await waitAuthTables(res))) return;
+
+  const parsed = adminResendOtpSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, message: 'Solicitud invalida' });
+  }
+
+  const identifier = parsed.data.identifier.trim();
+  try {
+    const [rows] = await pool.execute(
+      'SELECT id, name, email, email_verified FROM users WHERE email=? OR id=? LIMIT 1',
+      [identifier, identifier]
+    ) as any[];
+
+    const user = rows[0];
+    if (!user) {
+      // Misma respuesta ambigua que /start para no filtrar existencia
+      return res.json({ success: true, message: 'Si el usuario existe, se generó un OTP nuevo.' });
+    }
+
+    if (!user.email_verified) {
+      return res.status(403).json({
+        success: false,
+        message: 'La cuenta del alumno aún no fue autorizada por el administrador del colegio.',
+      });
+    }
+
+    // Generar OTP nuevo con la misma lógica que /start
+    const challengeId = randomBytes(20).toString('hex');
+    const otp = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    const salt = randomBytes(12).toString('hex');
+    const createdAt = Date.now();
+    const expiresAt = createdAt + OTP_TTL_MS;
+
+    await pool.execute(
+      `INSERT INTO auth_otp_challenges
+       (id, user_id, salt, otp_hash, expires_at, attempts, max_attempts, consumed_at, created_at, ip, user_agent)
+       VALUES (?, ?, ?, ?, ?, 0, 5, NULL, ?, ?, ?)`,
+      [
+        challengeId,
+        user.id,
+        salt,
+        hashOtp(otp, salt),
+        expiresAt,
+        createdAt,
+        req.ip ?? null,
+        (req.headers['user-agent'] ?? '').slice(0, 255),
+      ]
+    );
+
+    // Loggear el OTP en consola para que el admin lo vea (porque el SMTP
+    // puede estar caído o el email del alumno mal escrito).
+    console.log(`[admin-resend-otp] OTP para ${user.email} (challengeId=${challengeId}): ${otp}`);
+
+    // Intentar enviar por email como bonus (best-effort, no bloquea).
+    if (process.env.NODE_ENV !== 'development') {
+      try {
+        await sendOtpEmail(user.email, user.name ?? user.email, otp, OTP_TTL_MINUTES);
+      } catch (emailErr: any) {
+        console.error('[admin-resend-otp] Email send failed (admin debe dictar OTP manualmente):', emailErr?.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      challengeId,
+      message: 'OTP generado. Si el SMTP no lo envía, revisa la consola del server y dictalo al alumno.',
+      // Solo en development devolvemos el OTP al cliente para testing.
+      devOtp: process.env.NODE_ENV === 'development' ? otp : undefined,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 authRouter.post('/start', async (req, res) => {
   if (!(await waitAuthTables(res))) return;
