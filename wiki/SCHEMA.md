@@ -118,3 +118,30 @@ ci: cambios en CI/CD
 - **Working tree:** clean al momento del audit
 - **Imágenes de recetas:** TRACKEADAS en git (carpeta `images/`)
 - **Tests:** ❌ ninguno configurado (TODO: agregar Vitest)
+
+---
+
+## ⚠️ Troubleshooting post-deploy
+
+### Backend muere al arrancar con `SESSION_SECRET es obligatorio`
+
+**Síntoma:** log muestra
+```
+Error: [Sessions] SESSION_SECRET es obligatorio en producción.
+  at resolveSessionSecret (.../middleware/sessions.js:17:19)
+```
+
+**Causa:** `NODE_ENV=production` + `.env` sin `SESSION_SECRET` real (o con placeholder
+`cambia-esto-en-produccion`). El guard fail-closed rechaza arrancar.
+
+**Fix:**
+1. Generar secret: `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`
+2. Pegar en hPanel → Variables de entorno
+3. Reiniciar proceso Node
+
+**Por qué es importante:** fallar abierto en prod con un secret público
+significaría que cualquiera puede firmar cookies de admin. Por eso el guard es estricto.
+
+**Lección operativa:** cualquier redeploy que toque el código de auth DEBE
+venir acompañado de verificación del `.env` en producción. Agregar a un
+runbook futuro si se automatiza el deploy.
