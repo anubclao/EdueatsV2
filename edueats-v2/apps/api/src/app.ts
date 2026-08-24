@@ -145,8 +145,30 @@ export function createApp() {
   // ── Sesiones en MemoryStore (single-instance) ───────────────────────────
   app.use(getSessionMiddleware());
 
-  // Serve uploaded images
-  const imagesPath = path.join(__dirname, '..', '..', '..', '..', 'images');
+  // Serve uploaded images.
+  //
+  // Resolución del path:
+  //   1. Si IMAGES_PATH está definido en env (producción Hostinger):
+  //      se usa tal cual (debe apuntar al storage persistente, NO al dir del build).
+  //   2. Si no, se calcula relativo al `__dirname` del código compilado,
+  //      retrocediendo hasta la raíz del monorepo donde está `images/`.
+  //
+  // En Hostinger cada deploy vive en `hbuilds/versions/<hash>/nodejs/apps/api/dist/`
+  // y `images/` está en el storage persistente, separado del build. Por eso
+  // el cálculo relativo falla en producción si no se define IMAGES_PATH.
+  const imagesPath = process.env.IMAGES_PATH
+    ? path.resolve(process.cwd(), process.env.IMAGES_PATH)
+    : path.join(__dirname, '..', '..', '..', '..', '..', 'images');
+
+  if (!fs.existsSync(imagesPath)) {
+    console.error(
+      `[startup] IMAGES_PATH no resuelve a un directorio válido: ${imagesPath}\n` +
+      `         Define IMAGES_PATH en el .env apuntando al storage persistente ` +
+      `donde están las imágenes (ej: /home/u.../storage/images).`
+    );
+  } else {
+    console.log(`[startup] Sirviendo imágenes desde: ${imagesPath}`);
+  }
   app.use('/images', express.static(imagesPath));
 
   app.use('/api/health', healthRouter);
