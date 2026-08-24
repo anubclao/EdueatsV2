@@ -44,6 +44,15 @@ function normalizeOrigin(value: string) {
 export function createApp() {
   const app = express();
 
+  // ── Confiar en 1 nivel de proxy (Hostinger/Cloudflare) ─────────────────
+  // Sin esto, req.ip siempre devuelve la IP del reverse-proxy interno y
+  // express-rate-limit agrupa TODOS los requests bajo la misma "IP",
+  // anulando la protección por usuario. Con `1` confiamos solo en el primer
+  // hop del header X-Forwarded-For (el más cercano al cliente).
+  // NO usar `true` (confía en todos) — susceptible a spoofing si el cliente
+  // puede setear el header (que puede si no hay proxy real delante).
+  app.set('trust proxy', 1);
+
   // ── Seguridad: headers HTTP ──────────────────────────────────────────────
   app.use(
     helmet({
