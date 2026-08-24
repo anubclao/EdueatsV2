@@ -29,7 +29,7 @@ async function fetchMenus(schoolId: string, date?: string) {
 menusRouter.get('/', requireAuth, async (req, res) => {
   const schoolId = getSchoolId(req);
   try {
-    const menus = await getCachedMenus('menus:all', () => fetchMenus(schoolId));
+    const menus = await getCachedMenus(`menus:all:${schoolId}`, () => fetchMenus(schoolId));
     res.json(menus);
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
