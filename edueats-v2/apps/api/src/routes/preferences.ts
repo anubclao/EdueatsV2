@@ -34,6 +34,14 @@ preferencesRouter.get('/:studentId', requireAuth, async (req, res) => {
 preferencesRouter.post('/', requireAuth, async (req, res) => {
   const schoolId = getSchoolId(req);
   const { studentId, dayOfWeek, items } = req.body;
+
+  // Los estudiantes solo pueden guardar SUS preferencias. Admin/staff/teacher
+  // pueden hacerlo por cualquier estudiante del colegio (caso de uso legítimo
+  // en primaria donde el docente configura el menú recurrente).
+  if (req.authUser?.role === 'student' && req.authUser.id !== studentId) {
+    return res.status(403).json({ error: 'Sin permisos para modificar preferencias de otro estudiante.' });
+  }
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();

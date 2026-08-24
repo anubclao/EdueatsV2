@@ -50,7 +50,7 @@ recipesRouter.post('/upload-image', requireAuth, requireRoles('admin'), upload.s
 recipesRouter.get('/', requireAuth, async (req, res) => {
   const schoolId = getSchoolId(req);
   try {
-    const rows = await getCachedRecipes(() =>
+    const rows = await getCachedRecipes(schoolId, () =>
       pool.execute(
         'SELECT id, name, description, category, calories, image_url as imageUrl FROM recipes WHERE school_id = ?',
         [schoolId]
@@ -68,7 +68,7 @@ recipesRouter.post('/', requireAuth, requireRoles('admin'), async (req, res) => 
       'INSERT INTO recipes (id, name, description, category, calories, image_url, school_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [id, name, description, category, calories, imageUrl || null, schoolId]
     );
-    await invalidateRecipesCache();
+    await invalidateRecipesCache(schoolId);
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
@@ -77,11 +77,14 @@ recipesRouter.put('/:id', requireAuth, requireRoles('admin'), async (req, res) =
   const schoolId = getSchoolId(req);
   const { name, description, category, calories, imageUrl } = req.body;
   try {
-    await pool.execute(
+    const [result] = await pool.execute(
       'UPDATE recipes SET name=?, description=?, category=?, calories=?, image_url=? WHERE id=? AND school_id=?',
       [name, description, category, calories, imageUrl || null, req.params.id, schoolId]
-    );
-    await invalidateRecipesCache();
+    ) as any[];
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Receta no encontrada en este colegio.' });
+    }
+    await invalidateRecipesCache(schoolId);
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
@@ -89,8 +92,11 @@ recipesRouter.put('/:id', requireAuth, requireRoles('admin'), async (req, res) =
 recipesRouter.delete('/:id', requireAuth, requireRoles('admin'), async (req, res) => {
   const schoolId = getSchoolId(req);
   try {
-    await pool.execute('DELETE FROM recipes WHERE id=? AND school_id=?', [req.params.id, schoolId]);
-    await invalidateRecipesCache();
+    const [result] = await pool.execute('DELETE FROM recipes WHERE id=? AND school_id=?', [req.params.id, schoolId]) as any[];
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Receta no encontrada en este colegio.' });
+    }
+    await invalidateRecipesCache(schoolId);
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });

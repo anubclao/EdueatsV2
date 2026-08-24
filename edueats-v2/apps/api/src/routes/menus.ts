@@ -61,7 +61,7 @@ menusRouter.post('/', requireAuth, requireRoles('admin'), async (req, res) => {
     }
     await conn.commit();
     // Invalidate cache after update
-    await invalidateMenuCache(date);
+    await invalidateMenuCache({ schoolId });
     res.json({ success: true });
   } catch (e: any) {
     await conn.rollback();
@@ -74,7 +74,7 @@ menusRouter.delete('/:date', requireAuth, requireRoles('admin'), async (req, res
   try {
     await pool.execute('DELETE FROM daily_menu_configs WHERE date=? AND school_id=?', [req.params.date, schoolId]);
     // Invalidate cache after delete
-    await invalidateMenuCache(req.params.date);
+    await invalidateMenuCache({ schoolId, date: req.params.date });
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });

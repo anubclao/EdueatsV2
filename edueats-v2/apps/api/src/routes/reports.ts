@@ -51,28 +51,3 @@ reportsRouter.delete('/:id', requireAuth, requireRoles('admin'), async (req, res
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
-
-reportsRouter.post('/', requireAuth, requireRoles('admin'), async (req, res) => {
-  const schoolId = getSchoolId(req);
-  const { id, type, dateGenerated, title, content, filtersUsed } = req.body;
-  const normalizedDate = toMysqlDateTime(dateGenerated);
-  const filters = filtersUsed ? JSON.stringify(filtersUsed) : null;
-  try {
-    await pool.execute(
-      `INSERT INTO generated_reports (id, type, date_generated, title, content, filters_used, school_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE type=?, date_generated=?, title=?, content=?, filters_used=?`,
-      [id, type, normalizedDate, title, content, filters, schoolId,
-       type, normalizedDate, title, content, filters]
-    );
-    res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
-});
-
-reportsRouter.delete('/:id', requireAuth, requireRoles('admin'), async (req, res) => {
-  const schoolId = getSchoolId(req);
-  try {
-    await pool.execute('DELETE FROM generated_reports WHERE id=? AND school_id=?', [req.params.id, schoolId]);
-    res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
-});

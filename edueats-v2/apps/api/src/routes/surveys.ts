@@ -92,14 +92,25 @@ surveysRouter.post('/results', requireAuth, async (req, res) => {
   const schoolId = getSchoolId(req);
   const { id, surveyDefinitionId, userId, userName, userRole, userPhone, date, qualityRating, quantityRating, type, comment, status } = req.body;
   try {
+    // IDOR fix: los estudiantes solo pueden responder POR SÍ MISMOS.
+    // admin/staff/teacher pueden registrar resultados en nombre de otro usuario
+    // (caso de uso: docente transcribe respuesta de un alumno de primaria).
+    const effectiveUserId = req.authUser?.role === 'student'
+      ? req.authUser.id
+      : userId;
+
+    if (!effectiveUserId) {
+      return res.status(400).json({ error: 'Falta el identificador del usuario.' });
+    }
+
     const [existing] = await pool.execute(
       'SELECT id FROM survey_results WHERE user_id=? AND survey_definition_id=? AND school_id=?',
-      [userId, surveyDefinitionId, schoolId]
+      [effectiveUserId, surveyDefinitionId, schoolId]
     ) as any[];
     if (existing.length) return res.json({ success: false, message: 'Ya has respondido a esta encuesta.' });
     await pool.execute(
       'INSERT INTO survey_results (id, survey_definition_id, user_id, user_name, user_role, user_phone, date, quality_rating, quantity_rating, type, comment, status, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, surveyDefinitionId, userId, userName, userRole, userPhone ?? null, date, qualityRating, quantityRating, type, comment, status ?? 'pending', schoolId]
+      [id, surveyDefinitionId, effectiveUserId, userName, userRole, userPhone ?? null, date, qualityRating, quantityRating, type, comment, status ?? 'pending', schoolId]
     );
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }

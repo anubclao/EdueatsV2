@@ -16,9 +16,11 @@ rolesRouter.post('/', requireAuth, requireRoles('admin'), async (req, res) => {
   try {
     const [existing] = await pool.execute('SELECT id FROM roles WHERE id=?', [id]) as any[];
     if (existing.length > 0) return res.json({ success: false });
+    // Forzar isSystem=0 — los roles de sistema los crea la migración/seed,
+    // no un admin vía API.
     await pool.execute(
-      'INSERT INTO roles (id, name, description, is_system) VALUES (?, ?, ?, ?)',
-      [id, name, description || '', isSystem ? 1 : 0]
+      'INSERT INTO roles (id, name, description, is_system) VALUES (?, ?, ?, 0)',
+      [id, name, description || '']
     );
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }

@@ -37,7 +37,7 @@ export async function ensureImageFoldersForAllCategories() {
 categoriesRouter.get('/', requireAuth, async (req, res) => {
   const schoolId = getSchoolId(req);
   try {
-    const rows = await getCachedCategories(() =>
+    const rows = await getCachedCategories(schoolId, () =>
       pool.execute(
         'SELECT id, name, `order`, exclusive_group AS exclusiveGroup FROM categories WHERE school_id = ? ORDER BY `order`',
         [schoolId]
@@ -57,7 +57,7 @@ categoriesRouter.post('/', requireAuth, requireRoles('admin'), async (req, res) 
       [id, name, order, exclusiveGroup || null, schoolId]
     );
     await ensureImageFolderForCategoryId(id);
-    await invalidateCategoriesCache();
+    await invalidateCategoriesCache(schoolId);
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });
@@ -71,7 +71,7 @@ categoriesRouter.put('/:id', requireAuth, requireRoles('admin'), async (req, res
       [name, order, exclusiveGroup || null, req.params.id, schoolId]
     );
     await ensureImageFolderForCategoryId(req.params.id);
-    await invalidateCategoriesCache();
+    await invalidateCategoriesCache(schoolId);
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });

@@ -11,15 +11,33 @@ const getAppBaseUrl = () => {
   return raw.split(',')[0].trim().replace(/\/+$/, '');
 };
 
-const mapUser = (u: any) => u ? ({
-  ...u,
-  emailVerified: Boolean(u.email_verified ?? u.emailVerified),
-  email_verified: undefined,
-  verification_token: undefined,
-  token_expires_at: undefined,
-  verificationToken: undefined,
-  tokenExpiresAt: undefined,
-}) : null;
+/**
+ * Whitelist explícita de columnas seguras que devolvemos al cliente.
+ *
+ * NO usamos `{ ...u }` (spread) para evitar que un día se agregue una columna
+ * sensible a la tabla `users` (password_hash, secret_token, recovery_code)
+ * y se filtre automáticamente en cada respuesta.
+ */
+const USER_SAFE_COLUMNS = [
+  'id', 'name', 'email', 'phone', 'role',
+  'grade', 'section', 'allergies',
+  'email_verified', 'school_id',
+  'created_at', 'updated_at',
+] as const;
+
+const mapUser = (u: any) => {
+  if (!u) return null;
+  const out: Record<string, any> = {};
+  for (const col of USER_SAFE_COLUMNS) {
+    if (col in u) out[col] = u[col];
+  }
+  // Renombrar snake → camel para el frontend.
+  out.emailVerified = Boolean(out.email_verified);
+  out.schoolId = out.school_id ?? 'default';
+  delete out.email_verified;
+  delete out.school_id;
+  return out;
+};
 
 export const usersRouter = Router();
 

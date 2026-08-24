@@ -18,9 +18,17 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import pool from '../db/pool.js';
+import { requireAuth, requireRoles } from '../middleware/auth.js';
 import { invalidateCategoriesCache, invalidateRecipesCache } from '../services/cache-helpers.js';
 
 export const schoolsRouter = Router();
+
+// Todos los endpoints de gestión de colegios requieren auth de admin.
+// Antes estaban abiertos bajo el supuesto de "solo el operador tiene acceso
+// al deployment" — eso era aceptable en single-tenant pero con el endpoint
+// expuesto en Hostinger cualquiera con curl podía listar/crear colegios.
+// Fix: cerrar detrás de admin auth.
+schoolsRouter.use(requireAuth, requireRoles('admin'));
 
 const createSchoolSchema = z.object({
   id: z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9-_]*$/i, 'ID inválido'),

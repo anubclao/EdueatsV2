@@ -19,8 +19,11 @@ variablesRouter.post('/', requireAuth, requireRoles('admin'), async (req, res) =
   try {
     const [existing] = await pool.execute('SELECT id FROM global_variables WHERE id=? AND school_id=?', [id, schoolId]) as any[];
     if (existing.length) return res.json({ success: false, message: 'Ya existe una variable con este ID.' });
-    await pool.execute('INSERT INTO global_variables (id, name, value, is_system, school_id) VALUES (?, ?, ?, ?, ?)',
-      [id, name, value, isSystem ? 1 : 0, schoolId]);
+    // Forzar isSystem=0 — solo el sistema puede crear variables de sistema
+    // (ej: migración o seed inicial). Un admin que crea una variable vía API
+    // no debe poder marcarla como de sistema.
+    await pool.execute('INSERT INTO global_variables (id, name, value, is_system, school_id) VALUES (?, ?, ?, 0, ?)',
+      [id, name, value, schoolId]);
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: 'Error interno del servidor.' }); }
 });

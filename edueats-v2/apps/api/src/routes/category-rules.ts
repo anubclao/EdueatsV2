@@ -7,6 +7,17 @@ import { getCachedCategoryRules, invalidateCategoryRulesCache } from '../service
 export const categoryRulesRouter = Router();
 
 // Ensure table exists on first use
+//
+// DECISIÓN DE DISEÑO: `category_rules` es GLOBAL de plataforma (no tiene
+// school_id). Las reglas de bloqueo/requerido entre categorías son comunes
+// a toda la red de colegios (ej: "Vegetariano bloquea Sopa" aplica en
+// cualquier colegio porque son categorías base del seed inicial). Agregar
+// school_id sería over-engineering para una tabla que raramente cambia y
+// que admin plataforma controla desde un único lugar. Si en el futuro un
+// colegio quiere reglas custom, se agrega `school_id` con migración
+// backwards-compatible (DEFAULT NULL = regla global).
+//
+// Referencia: wiki/concepts/security-audit.md (P1 #10).
 const ensureTable = pool.query(`
   CREATE TABLE IF NOT EXISTS category_rules (
     id VARCHAR(80) PRIMARY KEY,
