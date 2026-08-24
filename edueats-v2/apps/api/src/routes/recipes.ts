@@ -23,10 +23,15 @@ const storage = multer.diskStorage({
     req._imageCategory = category;
     cb(null, dest);
   },
-  filename: (req: any, file, cb) => {
-    const recipeId = (req.body.recipeId || crypto.randomUUID()).replace(/[^a-z0-9-_]/gi, '');
-    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-    cb(null, `${recipeId}${ext}`);
+  filename: (_req, file, cb) => {
+    // Use a fresh UUID as the on-disk filename. We deliberately IGNORE the
+    // recipeId from the request body: trusting client-supplied names is a
+    // path-traversal / overwrite vector and previously produced truncated
+    // UUIDs in the DB (the prior regex was over-aggressive). The returned
+    // response.json uses req.file.filename, so the DB always stores exactly
+    // what is on disk — no drift possible.
+    const filename = `${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase() || '.png'}`;
+    cb(null, filename);
   },
 });
 
